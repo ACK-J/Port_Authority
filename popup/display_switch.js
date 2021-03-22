@@ -1,18 +1,18 @@
-export var enabled = true;
+const Background = require('../background.js');
 
-function toggleEnabled(id) {
-  enabled = !enabled;
-  return;
+let enabled = true;
+
+function toggleEnabled() {
+  if (enabled){
+    Background.stop();
+    enabled = false;
+  }else{
+    Background.start();
+    enables = true;
+  }
 }
 
-document.addEventLisstener("click", function(e) {
-  if (!e.target.classList.contains("slider")) {
-    return;
-  }
-
-  toggleEnabled(id);
-
-});
+document.getElementById("ortAuthoritySlidingSwitch").addEventListener("click", toggleEnabled);
 
 
 
