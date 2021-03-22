@@ -3,7 +3,7 @@
   "description": "Blocks websites from port scanning your computer",
   "manifest_version": 2,
   "name": "Port Authority",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "homepage_url": "https://github.com/ACK-J/Port_Authoirty",
   "icons": {
     "48": "icons/logo-48.png",
@@ -18,6 +18,16 @@
 
   "background": {
     "scripts": ["background.js"]
-  }
+  },
+
+  "browser_action": {
+    "browser_style": true,
+    "default_popup": "popup/display_switch.html",
+    "default_title": "Port Authority",
+    "default_icon": {
+      "16": "icons/logo-16.png",
+      "32": "icons/logo-32.png"
+    }
+  } 
 
 }
