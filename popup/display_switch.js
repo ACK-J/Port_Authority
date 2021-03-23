@@ -1,20 +1,23 @@
-const Background = require('../background.js');
+import { start, stop } from "../background.js";
 
 let enabled = true;
 
-function toggleEnabled() {
+function toggleEnabled(e) {
+  if (e === null){
+    return;
+  }
   if (enabled){
-    Background.stop();
+    stop();
+    console.log("Stopped");
     enabled = false;
   }else{
-    Background.start();
-    enables = true;
+    start();
+    console.log("Started");
+    enabled = true;
   }
 }
 
-document.getElementById("ortAuthoritySlidingSwitch").addEventListener("click", toggleEnabled);
-
-
+document.getElementById("PortAuthoritySlidingSwitch").addEventListener("click", toggleEnabled);
 
 
 

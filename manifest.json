@@ -13,11 +13,12 @@
   "permissions": [
     "webRequest",
     "webRequestBlocking",
+    "storage",
     "<all_urls>"
   ],
 
   "background": {
-    "scripts": ["background.js"]
+    "page": "background-page.html"
   },
 
   "browser_action": {
@@ -28,6 +29,6 @@
       "16": "icons/logo-16.png",
       "32": "icons/logo-32.png"
     }
-  } 
+  }
 
 }

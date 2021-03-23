@@ -1,4 +1,3 @@
-export { start, stop };
 var port_scans_blocked = 0;
 
 function cancel(requestDetails) {
@@ -23,14 +22,15 @@ function increment() {
   browser.browserAction.setBadgeText({text: (++port_scans_blocked).toString()});
 }
 
-function start() {
+export function start() {
+    //Add event listener
     browser.webRequest.onBeforeRequest.addListener(
         cancel,
         {urls: ["*://*/*"]}, // Match all HTTP, HTTPS and WebSocket URLs.
         ["blocking"] // if cancel() returns true block the request.
     );
 }
-function stop() {
+export function stop() {
   //Remove event listener
   browser.webRequest.onBeforeRequest.removeListener(cancel);
 }
