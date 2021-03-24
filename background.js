@@ -1,15 +1,18 @@
 let port_scans_blocked = 0;
 localStorage.removeItem('check');
 localStorage.setItem('check', true);
-let notified = false;
 
-
+let badges = {};
 var portScanningNotif = "port-scanning-notification"
+
+function onError(error) {
+  console.error(`Error: ${error}`);
+}
 
 function notify(){
   browser.notifications.create(portScanningNotif, {
     "type": "basic",
-    "iconUrl": browser.runtime.getURL("icons/logo-16.png"),
+    "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
     "title": "This site attempted to port scan you!",
     "message": "Port Authority has blocked this site from port scanning your private network."
   });
@@ -26,20 +29,17 @@ function cancel(requestDetails) {
     if (requestDetails.url.match(local_filter) !== null){
 	    // Check if the current website visited is a local address
 	    if (requestDetails.originUrl.match(local_filter) === null){
-                increment();
-                if (!notified){
+                let tabId = requestDetails.tabId;
+                increaseBadged(false, requestDetails);
+                if (badges[tabId].alerted == 0){
                     notify();
-                    notified = true;
+                    badges[tabId].alerted += 1;
                 }
 	        return {cancel: true};
 	    }
     }
     // Dont block sites that don't alert the detection
     return {cancel: false};
-}
-
-function increment() {
-  browser.browserAction.setBadgeText({text: (++port_scans_blocked).toString()});
 }
 
 export function start() {
@@ -49,14 +49,62 @@ export function start() {
         {urls: ["*://*/*"]}, // Match all HTTP, HTTPS and WebSocket URLs.
         ["blocking"] // if cancel() returns true block the request.
     );
-    notified = false;
 }
 export function stop() {
   //Remove event listener
   browser.webRequest.onBeforeRequest.removeListener(cancel);
 }
 
+/**
+ * Increases the badged by one.
+ * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ */
+function increaseBadged(quiet = false, request) {
+
+    if(request === null) return;
+
+    const tabId = request.tabId;
+    const url = request.url;
+
+    if(tabId === -1) return;
+
+    if (badges[tabId] == null) {
+        badges[tabId] = {
+            counter: 1,
+            alerted: 0,
+            lastURL: url
+        };
+    } else {
+        badges[tabId].counter += 1;
+    }
+    browser.browserAction.setBadgeText({text: (badges[tabId]).counter.toString(), tabId: tabId});
+
+}
+
+/**
+ * Call by each tab is updated.
+ * And if url has changed.
+ * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ */
+function handleUpdated(tabId, changeInfo, tabInfo) {
+    if(!badges[tabId] || !changeInfo.url) return;
+
+    if (badges[tabId].lastURL !== changeInfo.url) {
+        badges[tabId] = {
+            counter: 0,
+            alerted: 0,
+            lastURL: tabInfo.url
+        };
+    }
+}
+
+
+
 start();
+/**
+ * Call by each tab is updated.
+ */
+browser.tabs.onUpdated.addListener(handleUpdated);
 
 
 
