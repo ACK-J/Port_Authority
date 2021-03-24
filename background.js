@@ -1,16 +1,14 @@
-let port_scans_blocked = 0;
 localStorage.removeItem('check');
 localStorage.setItem('check', true);
 
 let badges = {};
-var portScanningNotif = "port-scanning-notification"
 
 function onError(error) {
   console.error(`Error: ${error}`);
 }
 
 function notify(){
-  browser.notifications.create(portScanningNotif, {
+  browser.notifications.create("port-scanning-notification", {
     "type": "basic",
     "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
     "title": "This site attempted to port scan you!",
@@ -20,7 +18,7 @@ function notify(){
 
 function cancel(requestDetails) {
 	// Please note that the regex in https://regex101.com/r/DOPCdB/4/ is different from below, since below I needed to add an extra \ to \\b and \\w
-	const local_filter = "\\b(\\w[htpsw]{1,5}:\/\/127\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/0?10\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/localhost|\\w[htpsw]{1,5}:\/\/172\.(16|17|18|19|20|21|22|23|24|25|26|27|28|29|30|31)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/192\.168\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/169\.254\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/::1|\\w[htpsw]{1,5}:\/\/[fF][cCdD][0-9a-fA-F]{2}(?:[:][0-9a-fA-F]{0,4}){0,7}|\\w[htpsw]{1,5}:\/\/[fF][eE][89aAbB][0-9a-fA-F](?:[:][0-9a-fA-F]{0,4}){0,7})(?:\/([789]|1?[0-9]{2}))?\\b";
+	const local_filter = "\\b(\\w[htpsw]{1,5}:\/\/127\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/0?10\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/localhost|\\w[htpsw]{1,5}:\/\/172\.(0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/192\.168\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/169\.254\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\\w[htpsw]{1,5}:\/\/::1|\\w[htpsw]{1,5}:\/\/[fF][cCdD][0-9a-fA-F]{2}(?:[:][0-9a-fA-F]{0,4}){0,7}|\\w[htpsw]{1,5}:\/\/[fF][eE][89aAbB][0-9a-fA-F](?:[:][0-9a-fA-F]{0,4}){0,7})(?:\/([789]|1?[0-9]{2}))?\\b";
     // Error check
     if (requestDetails.originUrl === null || requestDetails.url === null){
         return {cancel: false};
@@ -30,7 +28,7 @@ function cancel(requestDetails) {
 	    // Check if the current website visited is a local address
 	    if (requestDetails.originUrl.match(local_filter) === null){
                 let tabId = requestDetails.tabId;
-                increaseBadged(false, requestDetails);
+                increaseBadged(requestDetails);
                 if (badges[tabId].alerted == 0){
                     notify();
                     badges[tabId].alerted += 1;
@@ -59,8 +57,8 @@ export function stop() {
  * Increases the badged by one.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
-function increaseBadged(quiet = false, request) {
-
+function increaseBadged(request) {
+    // Error check
     if(request === null) return;
 
     const tabId = request.tabId;
@@ -101,9 +99,7 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
 
 
 start();
-/**
- * Call by each tab is updated.
- */
+// Call by each tab is updated.
 browser.tabs.onUpdated.addListener(handleUpdated);
 
 
