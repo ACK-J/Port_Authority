@@ -18,6 +18,14 @@ function toggleEnabled(e) {
     console.log("Started");
     localStorage.removeItem('check');
     localStorage.setItem('check', true);
+	if (Notification.permission !== "denied") {
+	    Notification.requestPermission().then(function (permission) {
+	      // If the user accepts, let's create a notification
+	      if (permission === "granted") {
+	        var notification = new Notification("Hi there!");
+	      }
+	    });
+	}
   }
 }
 
@@ -31,7 +39,6 @@ function checkIfEnabled(){
     document.getElementById("onOffSwitch").click();
   }
 }
-
 
 checkIfEnabled();
 // Add an event listener to the switch
