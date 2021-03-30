@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Port Authority</title>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="switchButtons.css">
+    <link rel="stylesheet" type="text/css" href="core.css">
+</head>
+<body>
+        <div class="container-fluid"
+        style="min-width: 200px;">
+        <div class="row">
+            <nav class="col-sm-1 navbar-margin navbar banner-color">
+                <div class="container">
+                        <span class="navbar-brand">
+                            <span class="float-left"><img src="../icons/logo-32.png"
+                                width="32" height="32" alt=""></span>
+                                <span style="color: #FFFFFF;" class="float-right brand">
+                                     Port Authority
+                                </span><br />
+                                <span class="badge badge-warning float-left small-version"
+                                id="version"></span>
+                        </span>
+                        </div>
+                </nav>
+            </div>
+
+            <div class="row" id="config_section">
+                <div class="col-sm-1">
+                    <label class="switch">
+                        <input type="checkbox" id="globalStatus">
+                        <span class="slider round"></span>
+                        <label id="configs_switch_filter">Blocking</label>
+                    </label>
+                </div>
+            </div>
+            <div class="row" id="blocking_section">
+                <div class="col-sm-1">
+   			<h5><b id="blocked_hosts">Blocked Hosts</b></h5>
+                </div>
+            </div>
+        </div>
+        <br />
+    </div>
+</body>
+</html>
+
