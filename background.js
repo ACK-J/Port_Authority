@@ -17,16 +17,18 @@ function notify(){
 }
 
 function cancel(requestDetails) {
-	// Please note that the regex in https://regex101.com/r/DOPCdB/4/ is different from below, since below I needed to add an extra \ to \\b
-	const local_filter = "\\b((http|https|wss|ws):\/\/127.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/0?10.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/localhost|(http|https|wss|ws):\/\/172.(0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/192.168.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/169.254.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/::1|(http|https|wss|ws):\/\/[fF][cCdD][0-9a-fA-F]{2}(?:[:][0-9a-fA-F]{0,4}){0,7}|(http|https|wss|ws):\/\/[fF][eE][89aAbB][0-9a-fA-F](?:[:][0-9a-fA-F]{0,4}){0,7})(?:\/([789]|1?[0-9]{2}))?\\b";
+    // Please note that the regex in https://regex101.com/r/DOPCdB/10/ is different from below, since below I needed to change \b -> \\b
+    var local_filter = new RegExp("\\b((http|https|wss|ws):\/\/127\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/0?10\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/localhost|(http|https|wss|ws):\/\/172\.(0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/192\.168\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/169\.254\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(http|https|wss|ws):\/\/::1|(http|https|wss|ws):\/\/[fF][cCdD][0-9a-fA-F]{2}(?:[:][0-9a-fA-F]{0,4}){0,7}|(http|https|wss|ws):\/\/[fF][eE][89aAbB][0-9a-fA-F](?:[:][0-9a-fA-F]{0,4}){0,7})(?:\/([789]|1?[0-9]{2}))?\\b", "i");
     // Error check
     if (requestDetails.originUrl === null || requestDetails.url === null){
         return {cancel: false};
     }
     // Check if the network request is going to a local address
-    if (requestDetails.url.match(local_filter) !== null){
+    // search should return a 0 for the 0th index of the string
+    // if a match is further down the URL, it is probably a FP
+    if (requestDetails.url.search(local_filter) === 0){ 
 	    // Check if the current website visited is a local address
-	    if (requestDetails.originUrl.match(local_filter) === null){
+	    if (requestDetails.originUrl.search(local_filter) !== 0){
                 let tabId = requestDetails.tabId;
                 increaseBadged(requestDetails);
                 if (badges[tabId].alerted == 0){
