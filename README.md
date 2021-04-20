@@ -1,4 +1,7 @@
-# Port Authority
+[<img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px">](https://addons.mozilla.org/en-US/firefox/addon/port-authority/)
+
+# <sub><img src="https://user-images.githubusercontent.com/60232273/115322887-013d0380-a155-11eb-8a44-13e3f47156df.png" width="64px" height="64px"></sub> Port Authority
+
 Blocks websites from using javascript to port scan your computer/network and dynamically blocks all LexisNexis endpoints from running their invasive data collection scripts.
 
 | | | |
@@ -59,3 +62,8 @@ So I developed multiple ways to stop this. The first being the existing function
 **Note:** This second method will never include every customer-specific endpoint so you are better off using the dynamic blocking built into Port Authority which WILL block every single customer-specific endpoint Lexis Nexis uses.
 
 Most of these sites are using Lexis Nexis's Threat Metrix scripts, Dan Nemec has a great blog post reverse engineering the script and showing all the invasive data collected https://blog.nem.ec/2020/05/24/ebay-port-scanning/
+
+# ToDo:
+- Port to Chrome
+- Add functionality to UI
+   - Make blocked domains and ports show up in UI
