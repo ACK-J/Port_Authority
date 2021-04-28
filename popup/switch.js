@@ -15,4 +15,7 @@ browser.runtime.getBackgroundPage().then((bg) => {
 
   // Add an event listener to the switch
   document.getElementById('globalStatusPortAuthority').addEventListener("change", toggleEnabled);
+
+  // Make sure this doesn't run too early
+  setTimeout(() => document.documentElement.classList.remove('loading'), 0);
 });

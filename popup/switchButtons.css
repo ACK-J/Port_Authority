@@ -56,6 +56,11 @@
     transition: .4s;
 }
 
+:root.loading .slider, :root.loading .slider::before {
+  -webkit-transition: none;
+  transition: none;
+}
+
 input:checked + .slider {
     background-color: #800000;
 }
