@@ -4,7 +4,7 @@
   "manifest_version": 2,
   "name": "Port Authority",
   "version": "1.0.16",
-  "homepage_url": "https://github.com/ACK-J/Port_Authoirty",
+  "homepage_url": "https://github.com/ACK-J/Port_Authority",
   "icons": {
     "48": "icons/logo-48.png",
     "96": "icons/logo-96.png"
@@ -21,7 +21,9 @@
   ],
 
   "background": {
-    "page": "background-page.html"
+    "scripts": [
+      "background.js"
+    ]
   },
 
   "browser_action": {
@@ -31,6 +33,12 @@
     "default_icon": {
       "16": "icons/logo-16.png",
       "32": "icons/logo-32.png"
+    }
+  },
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{6c00218c-707a-4977-84cf-36df1cef310f}"
     }
   }
 
