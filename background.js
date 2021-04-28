@@ -68,7 +68,7 @@ async function cancel(requestDetails) {
     return {cancel: false};
 } // end cancel()
 
-export function start() {
+function start() {
     try{
         localStorage.setItem("state", true);
         //Add event listener
@@ -82,7 +82,7 @@ export function start() {
     }
 
 }
-export function stop() {
+function stop() {
     try{
         localStorage.setItem("state", false);
         //Remove event listener
@@ -91,6 +91,10 @@ export function stop() {
         console.log("STOP() ", e)
     }
 
+}
+
+function isListening() {
+    return browser.webRequest.onBeforeRequest.hasListener(cancel);
 }
 
 /**

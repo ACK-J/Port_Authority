@@ -21,7 +21,9 @@
   ],
 
   "background": {
-    "page": "background-page.html"
+    "scripts": [
+      "background.js"
+    ]
   },
 
   "browser_action": {
