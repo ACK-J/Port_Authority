@@ -41,8 +41,10 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 ## Permissions Needed
 **Display notifications to you**
 - This is needed so the addon can alert you when a malicious scripts is blocked or javascrpt port scanning is blocked.
+
 **Access browser tabs**
 - This is needed so the addon can display the proper number of blocked requests on a per-tab basis.
+
 **Access your data for all websites**
 - This is needed because the addon needs to check every request your browser makes to determine if it needs to be blocked.
 
