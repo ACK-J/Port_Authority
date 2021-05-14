@@ -15,6 +15,12 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 3. Gives a nice notification when one of the above scenerios are blocked :)
 4. This addon doesn't store/transmit any data or metadata about you or your requests... because ya know privacy
 
+## Donations ❤️
+If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps (even $1).
+- https://github.com/sponsors/ACK-J
+- Monero Address: `44MsQyiLdRsWokDWW8w5GegKevaJPtxG65HDd18hb4dX2ALhgPY2qrAhj4iyxDnumM3upMKuhA2BtiAyNAyCkvC97k1PZxc`
+- Z-Cash Address: `zs1u6s644dagu62hgq4zhpt2ywma70ccz7y60qsltf96tc7u2uxng3caqhlqnfsh96qlcymzgddaav`
+
 ## Regex Explination
 - Explination of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/15
 - Explination of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
