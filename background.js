@@ -5,7 +5,7 @@ function notifyPortScanning(){
     "type": "basic",
     "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
     "title": "This site attempted to port scan you!",
-    "message": "Port Authority has blocked this site from port scanning your private network."
+    "message": "Port Authority has blocked this site from bypassing security measures and port scanning your private network."
   });
 }
 
@@ -14,7 +14,7 @@ function notifyThreatMetrix(){
     "type": "basic",
     "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
     "title": "This site attempted to track you!",
-    "message": "Port Authority dynamically blocked a LexisNexis endpoint from running an invasive data collection script."
+    "message": "Port Authority dynamically blocked a hidden LexisNexis endpoint from running an invasive data collection script."
   });
 }
 
