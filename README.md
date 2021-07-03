@@ -72,7 +72,7 @@ So I developed multiple ways to stop this. The first being the existing function
 Most of these sites are using Lexis Nexis's Threat Metrix scripts, Dan Nemec has a great blog post reverse engineering the script and showing all the invasive data collected https://blog.nem.ec/2020/05/24/ebay-port-scanning/
 
 # WARNING
-DO NOT USE THIS ADDON IF YOU USE SOCKS% PROXIES. IT WILL CAUSE DNS LEAKS. FOR MORE INFORMATION SEE HERE https://github.com/ACK-J/Port_Authority/issues/7#issue-925519591
+DO NOT USE THIS ADDON IF YOU USE SOCKS5 PROXIES. IT WILL CAUSE DNS LEAKS. FOR MORE INFORMATION SEE HERE https://github.com/ACK-J/Port_Authority/issues/7#issue-925519591
 
 # ToDo:
 - Port to Chrome
