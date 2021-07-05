@@ -12,8 +12,8 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 ## What does this addon do?
 1. Blocks all possible types of port scanning through your browser (HTTP/HTTPS/WS/WSS/FTP/FTPS)
 2. Dynamically blocks the ThreatMetrix tracking scripts made by one of the largest and least ethical data brokers in the world (Lexis Nexis)
-3. Gives a nice notification when one of the above scenerios are blocked :)
-4. This addon doesn't store/transmit any data or metadata about you or your requests... because ya know privacy
+3. Gives a nice notification when one of the above scenarios are blocked :)
+4. This addon doesn't store/transmit any data or metadata about you or your requests... because, ya know, privacy
 
 ## Donations ❤️
 If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps (even $1).
@@ -21,9 +21,9 @@ If you are feeling generous or really like my work, consider donating or sponsor
 - Monero Address: `44MsQyiLdRsWokDWW8w5GegKevaJPtxG65HDd18hb4dX2ALhgPY2qrAhj4iyxDnumM3upMKuhA2BtiAyNAyCkvC97k1PZxc`
 - Z-Cash Address: `zs1u6s644dagu62hgq4zhpt2ywma70ccz7y60qsltf96tc7u2uxng3caqhlqnfsh96qlcymzgddaav`
 
-## Regex Explination
-- Explination of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/15
-- Explination of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
+## Regex Explanation
+- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/15
+- Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
 ## Test HTTP / HTTPS Portscanning
 - Site where you can test if HTTP port scanning works: https://defuse.ca/in-browser-port-scanning.htm
@@ -46,10 +46,10 @@ If you are feeling generous or really like my work, consider donating or sponsor
 
 ## Permissions Needed
 **Display notifications to you**
-- This is needed so the addon can alert you when a malicious scripts is blocked or javascrpt port scanning is blocked.
+- This is needed so the addon can alert you when a malicious script is blocked or javascript port scanning is blocked.
 
 **Access browser tabs**
-- This is needed so the addon can display the proper number of blocked requests on a per-tab basis.
+- This is needed so the addon can display the correct number of blocked requests on a per-tab basis.
 
 **Access your data for all websites**
 - This is needed because the addon needs to check every request your browser makes to determine if it needs to be blocked.
@@ -59,17 +59,17 @@ I was intrigued back in May of 2020 when eBay got caught port scanning their cus
 
 **Here's why I think that:**
 - The data being exfiled from your computer is encrypted into an image with XOR.
-- The domain it reaches out to is made to look legitimate, but redirects using a CNAME record to Lexis Nexis' servers.
-- It can determine your real IP address even if you are using a VPN / Proxy [HERE](https://risk.lexisnexis.com/global/en/products/threatmetrix).
+- The domain it reaches out to is made to look legitimate but redirects using a CNAME record to Lexis Nexis' servers.
+- It can determine your “real IP” address even if you use a VPN / Proxy [HERE](https://risk.lexisnexis.com/global/en/products/threatmetrix).
 - The javascript is assembled via string.join (like malware often does) and then executed in a service worker.
-- Each time you load the page the javascript is re-obfuscated.
+- Each time you load the page, the javascript is re-obfuscated.
 - The script collects 416 pieces of personally identifiable information about you and your network. ( Shown [HERE](https://gist.github.com/ACK-J/aa8dceb072d31d97a4e7fe0ef389f370) )
 
-So I developed multiple ways to stop this. The first being the existing functionality built into Port Authority. By default, Port Authority will check the sites that your browser reaches out to and if it redirects to Lexis Nexis' infrastructure, it will be blocked and you will receive a notification. The second is a Python script I wrote which uses Shodan to find all of Lexis Nexis' customer-specific domains on the internet [HERE](https://gist.github.com/ACK-J/7a2da401c732cbe58479d03acc4e4b43). You can add the output of the script to a blocker such as uBlockOrigin to prevent your computer from connecting to them.
+So I developed multiple ways to stop this. The first being the existing functionality built into Port Authority. By default, Port Authority will check the sites that your browser reaches out to, and if it redirects to Lexis Nexis' infrastructure, it will be blocked, and you will receive a notification. The second is a Python script I wrote which uses Shodan to find all of Lexis Nexis' customer-specific domains on the internet [HERE](https://gist.github.com/ACK-J/7a2da401c732cbe58479d03acc4e4b43). You can add the script's output to a blocker such as uBlockOrigin to prevent your computer from connecting to them.
 
-**Note:** This second method will never include every customer-specific endpoint so you are better off using the dynamic blocking built into Port Authority which WILL block every single customer-specific endpoint Lexis Nexis uses.
+**Note:** This second method will never include every customer-specific endpoint, so you are better off using the dynamic blocking built into Port Authority which WILL block every customer-specific endpoint Lexis Nexis uses.
 
-Most of these sites are using Lexis Nexis's Threat Metrix scripts, Dan Nemec has a great blog post reverse engineering the script and showing all the invasive data collected https://blog.nem.ec/2020/05/24/ebay-port-scanning/
+Most of these sites are using Lexis Nexis's Threat Metrix scripts. Dan Nemec has an excellent blog post reverse engineering the script and showing all the invasive data collected https://blog.nem.ec/2020/05/24/ebay-port-scanning/
 
 # WARNING
 DO NOT USE THIS ADDON IF YOU USE SOCKS5 PROXIES. IT WILL CAUSE DNS LEAKS. FOR MORE INFORMATION SEE HERE https://github.com/ACK-J/Port_Authority/issues/7#issue-925519591
