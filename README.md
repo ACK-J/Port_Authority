@@ -1,6 +1,6 @@
 [<img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px">](https://addons.mozilla.org/en-US/firefox/addon/port-authority/)
 
-# <sub><img src="https://user-images.githubusercontent.com/60232273/115322887-013d0380-a155-11eb-8a44-13e3f47156df.png" width="64px" height="64px"></sub> Port Authority
+# <sub><img src="https://user-images.githubusercontent.com/60232273/124614032-d99b3480-de41-11eb-96b9-8e830240a698.png" width="64px" height="64px"></sub> Port Authority
 
 Blocks websites from using javascript to port scan your computer/network and dynamically blocks all LexisNexis endpoints from running their invasive data collection scripts.
 
