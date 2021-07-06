@@ -1,4 +1,5 @@
 let badges = {};
+var notificationsAllowed = true;
 
 function notifyPortScanning(){
   browser.notifications.create("port-scanning-notification", {
@@ -20,9 +21,9 @@ function notifyThreatMetrix(){
 
 
 async function cancel(requestDetails) {
-    // This regex is explained here https://regex101.com/r/DOPCdB/15/ below I needed to change \b -> \\b
-    let local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/::1|^(http|https|wss|ws|ftp|ftps):\/\/[fF][cCdD][0-9a-fA-F]{2}(?:[:][0-9a-fA-F]{0,4}){0,7}|^(http|https|wss|ws|ftp|ftps):\/\/[fF][eE][89aAbB][0-9a-fA-F](?:[:][0-9a-fA-F]{0,4}){0,7})(?:\/([789]|1?[0-9]{2}))?\\b", "i");
-    // Create a regex to find all sub-domains for online-metrix.net
+    // This regex is explained here https://regex101.com/r/DOPCdB/16/ below I needed to change \b -> \\b
+    let local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/\[?::1|^(http|https|wss|ws|ftp|ftps):\/\/\[?[fF][cCdD][0-9a-fA-F]{2}(?:[:][0-9a-fA-F]{0,4}){0,7}|^(http|https|wss|ws|ftp|ftps):\/\/\[?[fF][eE][89aAbB][0-9a-fA-F](?:[:][0-9a-fA-F]{0,4}){0,7})(?:\/([789]|1?[0-9]{2}))?\\b\]?", "i");
+    // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
     let thm = new RegExp("online-metrix[.]net$", "i");
 
     // This reduces having to check this conditional multiple times
@@ -38,14 +39,13 @@ async function cancel(requestDetails) {
         if (resolving.canonicalName.search(thm) !== -1){
             let tabId = requestDetails.tabId;
             increaseBadged(requestDetails);
-            if (badges[tabId].alerted == 0){
+            if (badges[tabId].alerted == 0 && notificationsAllowed){
                 notifyThreatMetrix();
                 badges[tabId].alerted += 1;
             }
             return {cancel: true};
         }
     }
-
 
     // Check if the network request is going to a local address
     // search should return a 0 for the 0th index of the string
@@ -56,7 +56,7 @@ async function cancel(requestDetails) {
                 // Increase the badge counter
                 let tabId = requestDetails.tabId;
                 increaseBadged(requestDetails);
-                if (badges[tabId].alerted == 0){
+                if (badges[tabId].alerted == 0 && notificationsAllowed){
                     notifyPortScanning();
                     badges[tabId].alerted += 1;
                 }
@@ -68,7 +68,8 @@ async function cancel(requestDetails) {
     return {cancel: false};
 } // end cancel()
 
-function start() {
+
+function start() {  // Enables blocking
     try{
         localStorage.setItem("state", true);
         //Add event listener
@@ -82,7 +83,8 @@ function start() {
     }
 
 }
-function stop() {
+
+function stop() {  // Disables blocking
     try{
         localStorage.setItem("state", false);
         //Remove event listener
@@ -93,7 +95,15 @@ function stop() {
 
 }
 
-function isListening() {
+function toggleNotificationsAllowed(){  // toggles notifications
+    notificationsAllowed = !notificationsAllowed;
+}
+
+function isNotifying(){  // returns if notifications are on
+    return notificationsAllowed;
+}
+
+function isListening() { // returns if blocking is on
     return browser.webRequest.onBeforeRequest.hasListener(cancel);
 }
 
@@ -140,11 +150,6 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
     }
 }
 
-
 start();
-//browser.runtime.onStartup.addListener(start)
 // Call by each tab is updated.
 browser.tabs.onUpdated.addListener(handleUpdated);
-
-
-
