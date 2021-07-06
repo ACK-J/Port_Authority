@@ -22,7 +22,7 @@ If you are feeling generous or really like my work, consider donating or sponsor
 - Z-Cash Address: `zs1u6s644dagu62hgq4zhpt2ywma70ccz7y60qsltf96tc7u2uxng3caqhlqnfsh96qlcymzgddaav`
 
 ## Regex Explanation
-- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/15
+- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/16
 - Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
 ## Test HTTP / HTTPS Portscanning
