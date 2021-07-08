@@ -72,7 +72,8 @@ So I developed multiple ways to stop this. The first being the existing function
 Most of these sites are using Lexis Nexis's Threat Metrix scripts. Dan Nemec has an excellent blog post reverse engineering the script and showing all the invasive data collected https://blog.nem.ec/2020/05/24/ebay-port-scanning/
 
 # WARNING
-DO NOT USE THIS ADDON IF YOU USE SOCKS5 PROXIES. IT WILL CAUSE DNS LEAKS. FOR MORE INFORMATION SEE HERE https://github.com/ACK-J/Port_Authority/issues/7#issue-925519591
+USING SOCKS5 PROXIES WITH THIS ADDON WILL CAUSE DNS LEAKS DUE TO HOW FIREFOX HANDLES CNAME LOOKUPS. FOR MORE INFORMATION SEE HERE https://github.com/ACK-J/Port_Authority/issues/7#issue-925519591
+- There is a simple fix for this. Type `about:config` in your browser, accept the warning, search for `network.trr.mode` and change it to `3`
 
 # ToDo:
 - Port to Chrome
