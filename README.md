@@ -6,7 +6,7 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 
 | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|
-|<img width="1604" alt="Ebay" src="https://user-images.githubusercontent.com/60232273/115321775-85da5280-a152-11eb-9ab3-8ce13e13a73a.png">  Ebay attempting to run ThreatMetrix scripts but being blocked by Port Authority. |  <img width="1604" alt="Chick Fil A" src="https://user-images.githubusercontent.com/60232273/115321756-7c50ea80-a152-11eb-9b11-107d08b20d6c.png"> If you go to the sign-in page on chick-fil-a.com and temporarily disable uBlockOrigin you will see chick fil a trying to port scan your computer through web sockets. |<img width="1604" alt="Discord" src="https://user-images.githubusercontent.com/60232273/115321767-7fe47180-a152-11eb-89d1-d3aaab669dfe.png"> Discord port scanning your computer trying to connect with the desktop Discord app.|
+| <img width="1604" alt="GUI" src=https://user-images.githubusercontent.com/60232273/124976863-c9c84f80-dffd-11eb-840a-8d0a79dc33c8.png>The GUI with options to toggle the functionality of the addon.|<img width="1604" alt="Chick-Fil-A" src="https://user-images.githubusercontent.com/60232273/115321756-7c50ea80-a152-11eb-9b11-107d08b20d6c.png">The sign-in page on chick-fil-a.com (temporarily disable uBlockOrigin) you will see chick fil a trying to port scan your computer through web sockets. |<img width="1604" alt="Discord" src="https://user-images.githubusercontent.com/60232273/115321767-7fe47180-a152-11eb-89d1-d3aaab669dfe.png"> Discord port scans your computer trying to connect with the desktop Discord app.|
 
 ----
 ## What does this addon do?
