@@ -6,7 +6,7 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 
 | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|
-| <img width="1604" alt="GUI" src=https://user-images.githubusercontent.com/60232273/125359645-97d62680-e338-11eb-8dc9-1a3643154ed4.png>The GUI with options to toggle the functionality of the addon.|<img width="1604" alt="Chick-Fil-A" src="https://user-images.githubusercontent.com/60232273/125359301-141c3a00-e338-11eb-881a-7ada6fcea788.png">The sign-in page on chick-fil-a.com (temporarily disable uBlockOrigin) you will see chick fil a trying to port scan your computer through web sockets. |<img width="1604" alt="Discord" src="https://user-images.githubusercontent.com/60232273/125358212-a0c5f880-e336-11eb-8d42-c0067b2133c0.png"> Discord port scans your computer trying to connect with the desktop Discord app.|
+| <img width="1604" alt="GUI" src=https://user-images.githubusercontent.com/60232273/125359645-97d62680-e338-11eb-8dc9-1a3643154ed4.png>The GUI with options to toggle the functionality of the addon.|<img width="1604" alt="Chick-Fil-A" src="https://user-images.githubusercontent.com/60232273/125359301-141c3a00-e338-11eb-881a-7ada6fcea788.png">Chick-fil-a attempting to run ThreatMetrix scripts but being blocked by Port Authority. |<img width="1604" alt="Discord" src="https://user-images.githubusercontent.com/60232273/125358212-a0c5f880-e336-11eb-8d42-c0067b2133c0.png"> Discord port scans your computer trying to connect with the desktop Discord app.|
 
 ----
 ## What does this addon do?
