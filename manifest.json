@@ -14,6 +14,7 @@
     "webRequest",
     "webRequestBlocking",
     "storage",
+    "unlimitedStorage",
     "tabs",
     "notifications",
     "dns",
@@ -23,7 +24,8 @@
   "background": {
     "scripts": [
       "background.js",
-      "constants.js"
+      "constants.js",
+      "BrowserStorageManager.js"
     ]
   },
 

@@ -19,11 +19,11 @@ async function updateBlockedPortsDisplay() {
 
     const blocked_data_display = document.getElementById("blocked_data_display");
     // Create a wrapper element to hold the header and list of blocked hosts
-    const all_ports_wrapper = document.createElement("div");
+    const all_ports_wrapper = buildSectionWrapper();
 
     // Build the header/title element for this section
     const all_ports_header = document.createElement(SECTION_HEADER_ELEMENT);
-    all_ports_header.innerHTML = "Blocked ports";
+    all_ports_header.innerHTML = "Blocked port scans";
 
     // Add the header to the blocked hosts wrapper element
     all_ports_wrapper.appendChild(all_ports_header);
@@ -34,16 +34,16 @@ async function updateBlockedPortsDisplay() {
             const blocked_ports = JSON.parse(blocked_ports_string);
 
             const hosts = Object.keys(blocked_ports);
-            const all_hosts_display = buildSectionWrapper();
 
             // build a tree for each host that was blocked
             for (let i_host = 0; i_host < hosts.length; i_host++) {
                 // Build the wrapper for displaying the host name and ports blocked
                 const host = hosts[i_host];
-                const hosts_wrapper = document.createElement("div");
+                const host_wrapper = document.createElement("div");
                 const host_display = document.createElement("h6");
                 host_display.innerHTML = host;
-                hosts_wrapper.appendChild(host_display);
+                host_display.classList.add("pl-1");
+                host_wrapper.appendChild(host_display);
 
                 // build the list of blocked ports then append it to the wrapper
                 const hosts_ul = document.createElement("ul");
@@ -55,18 +55,22 @@ async function updateBlockedPortsDisplay() {
                     const port = ports[i_port];
                     const port_element = document.createElement("li");
                     port_element.innerHTML = port;
-                    port_element.classList.add("pl-1")
+                    port_element.classList.add("pl-3")
                     hosts_ul.appendChild(port_element);
                 }
 
-                hosts_wrapper.appendChild(hosts_ul);
-                all_hosts_display.appendChild(hosts_wrapper);
+                host_wrapper.appendChild(hosts_ul);
+                all_ports_wrapper.appendChild(host_wrapper);
             }
 
             blocked_data_display.innerHTML = "";
-            blocked_data_display.appendChild(all_hosts_display);
-        } catch {
-
+            blocked_data_display.appendChild(all_ports_wrapper);
+        } 
+        // If an error occurs clear any created elements
+        catch {
+            all_ports_wrapper.innerHTML = "";
+            // Add the header to the blocked hosts wrapper element
+            all_ports_wrapper.appendChild(all_ports_header);
         }
     }
 }
@@ -74,15 +78,13 @@ async function updateBlockedPortsDisplay() {
 async function updateBlockedHostsDisplay() {
 
     // grab the list of blocked hosts from extension storage
-    const blocked_hosts_object = await browser.storage.local.get({ "blocked_hosts": {} });
-    const blocked_hosts_string = blocked_hosts_object.blocked_hosts;
 
     // Create a wrapper element to hold the header and list of blocked hosts
     const hosts_wrapper = buildSectionWrapper();
 
     // Build the header/title element for this section
     const host_header = document.createElement(SECTION_HEADER_ELEMENT);
-    host_header.innerHTML = "Blocked hosts";
+    host_header.innerHTML = "Blocked tracking scripts";
 
     // Add the header to the blocked hosts wrapper element
     hosts_wrapper.appendChild(host_header);
@@ -92,6 +94,8 @@ async function updateBlockedHostsDisplay() {
     hosts_ul.classList.add("list-unstyled");
 
     try {
+        const blocked_hosts_object = await browser.storage.local.get({ "blocked_hosts": {} });
+        const blocked_hosts_string = blocked_hosts_object.blocked_hosts;
         // Data is stored as a valid JSON string, parse the data into an array (blocked hosts should be an array of domains)
         const blocked_hosts = JSON.parse(blocked_hosts_string);
 
@@ -102,6 +106,7 @@ async function updateBlockedHostsDisplay() {
 
             // Create the list element for the blocked host and set the text to the hosts name
             const host_li = document.createElement("li");
+            host_li.classList.add("pl-1");
             host_li.innerHTML = host_name;
 
             // Add the list element to the hosts UL
@@ -111,7 +116,6 @@ async function updateBlockedHostsDisplay() {
     } 
     // Something went wrong, empty the ul to be safe
     catch(error) {
-        console.log(error);
         hosts_ul.innerHTML = "";
     }
     // Add the list of blocked hosts to the wrapper containing the section header
@@ -123,11 +127,11 @@ async function updateBlockedHostsDisplay() {
 }
 
 // Helper function for calling all DOM-Modifying functions
-function showBlockedData() {
+function buildDataMarkup() {
     // Shows any and all ports that were blocked from scanning. Ports are sorted based on host that attempted the port scan
     updateBlockedPortsDisplay();
     // Shows any and all hosts that attempted to connect to a tracking service
     updateBlockedHostsDisplay();
 }
 
-showBlockedData();
+buildDataMarkup();
