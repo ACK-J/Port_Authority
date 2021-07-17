@@ -25,10 +25,10 @@ function notifyThreatMetrix() {
  * @param {string} tabId Id the of the browser tab the port check was executed in
  * @param {URL} url URL object built from the url of the tab associated with the tabID
  */
-const addBlockedPortToHost = async (url) => {
+const addBlockedPortToHost = async (url, tabIdString) => {
+    const tabId = parseInt(tabIdString);
     const host = url.host.split(":")[0];
     const port = url.port || getPortForProtocol(url.protocol);
-
 
     // Grab the blocked ports object from extensions storage
     const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
@@ -42,22 +42,21 @@ const addBlockedPortToHost = async (url) => {
         blocked_ports = {}
     }
 
-    console.log(`Got blocked_ports: ${JSON.stringify(blocked_ports)}`)
     // Grab the array of ports blocked for the host url
-    const hosts_ports = blocked_ports[host];
+    const tab_hosts = blocked_ports[tabId] || {};
+    const hosts_ports = tab_hosts[host];
     if (Array.isArray(hosts_ports)) {
         // Add the port too the array of blocked ports for this host IFF the port doesn't exist
         if (hosts_ports.indexOf(port) === -1) {
-            const hosts_ports = blocked_ports[host].concat([port])
-            blocked_ports[host] = hosts_ports
+            const hosts_ports = tab_hosts[host].concat([port])
+            tab_hosts[host] = hosts_ports
         }
 
     } else {
-        blocked_ports[host] = [port];
+        tab_hosts[host] = [port];
     }
 
-    // let querying = await browser.tabs.query({ currentWindow: true, active: true });
-    // const tab = querying[0];
+    blocked_ports[tabId] = tab_hosts;
 
     await setItemInLocal("blocked_ports", blocked_ports);
     return;
@@ -69,31 +68,29 @@ const addBlockedPortToHost = async (url) => {
  * @param {string} tabId Id the of the browser tab the port check was executed in
  * @param {URL} url URL object built from the url of the tab associated with the tabID
  */
-const addBlockedTrackingHost = async (url) => {
+const addBlockedTrackingHost = async (url, tabIdString) => {
+    const tabId = parseInt(tabIdString);
     const host = url.host;
 
     const blocked_hosts_object = await getItemFromLocal("blocked_hosts", []);
     const blocked_hosts_string = blocked_hosts_object.blocked_hosts;
 
-    let blocked_hosts;
+    let blocked_hosts_tabs;
     try {
-        blocked_hosts = JSON.parse(blocked_hosts_string)
+        blocked_hosts_tabs = JSON.parse(blocked_hosts_string)
     } catch {
-        blocked_hosts = []
+        blocked_hosts_tabs = {}
     }
 
-    if (Array.isArray(blocked_hosts)) {
-        if (blocked_hosts.indexOf(host) === -1) {
-            blocked_hosts.push(host);
-        }
-    } else {
-        blocked_hosts = [host]
+    let blocked_hosts = blocked_hosts_tabs[tabId] || [];
+
+    if (blocked_hosts.indexOf(host) === -1) {
+        blocked_hosts = blocked_hosts.concat([host]);
     }
 
-    // let querying = await browser.tabs.query({ currentWindow: true, active: true });
-    // const tab = querying[0];
+    blocked_hosts_tabs[tabId] = blocked_hosts;
 
-    await setItemInLocal("blocked_hosts", JSON.stringify(blocked_hosts));
+    await setItemInLocal("blocked_hosts", blocked_hosts_tabs);
     return;
 }
 
@@ -116,7 +113,7 @@ async function cancel(requestDetails) {
         if (resolving.canonicalName.search(thm) !== -1) {
             let tabId = requestDetails.tabId;
             increaseBadged(requestDetails);
-            await addBlockedTrackingHost(url);
+            await addBlockedTrackingHost(url, tabId);
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
                 notifyThreatMetrix();
                 badges[tabId].alerted += 1;
@@ -137,7 +134,7 @@ async function cancel(requestDetails) {
             increaseBadged(requestDetails);
 
             let url = new URL(requestDetails.url);
-            await addBlockedPortToHost(url);
+            await addBlockedPortToHost(url, tabId);
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
                 notifyPortScanning();
                 badges[tabId].alerted += 1;
@@ -236,4 +233,4 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
 start();
 // Call by each tab is updated.
 browser.tabs.onUpdated.addListener(handleUpdated);
-browser.runtime.onStartup.addListener(async () => { await browser.storage.local.clear()})
+browser.runtime.onStartup.addListener(async () => { await browser.storage.local.clear() })

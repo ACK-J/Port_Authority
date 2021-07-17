@@ -13,6 +13,10 @@ function buildSectionWrapper() {
  * Data is re-rendered each time the popup is opened.
  */
 async function updateBlockedPortsDisplay() {
+    let querying = await browser.tabs.query({ currentWindow: true, active: true });
+    const tab = querying[0];
+    const tabId = tab.id;
+
     // Grab the blocked ports from the extensions local storage.
     const blocked_ports_object = await browser.storage.local.get({ "blocked_ports": {} });
     const blocked_ports_string = blocked_ports_object.blocked_ports;
@@ -31,7 +35,8 @@ async function updateBlockedPortsDisplay() {
 
     if (blocked_ports_string) {
         try {
-            const blocked_ports = JSON.parse(blocked_ports_string);
+            const blocked_ports_tabs = JSON.parse(blocked_ports_string);
+            const blocked_ports = blocked_ports_tabs[tabId] || {};
 
             const hosts = Object.keys(blocked_ports);
 
@@ -76,6 +81,9 @@ async function updateBlockedPortsDisplay() {
 }
 
 async function updateBlockedHostsDisplay() {
+    let querying = await browser.tabs.query({ currentWindow: true, active: true });
+    const tab = querying[0];
+    const tabId = tab.id;
 
     // grab the list of blocked hosts from extension storage
 
@@ -97,7 +105,8 @@ async function updateBlockedHostsDisplay() {
         const blocked_hosts_object = await browser.storage.local.get({ "blocked_hosts": {} });
         const blocked_hosts_string = blocked_hosts_object.blocked_hosts;
         // Data is stored as a valid JSON string, parse the data into an array (blocked hosts should be an array of domains)
-        const blocked_hosts = JSON.parse(blocked_hosts_string);
+        const blocked_hosts_tabs = JSON.parse(blocked_hosts_string);
+        const blocked_hosts = blocked_hosts_tabs[tabId] || [];
 
         // Build a list of host names as li elements
         for (let host = 0; host < blocked_hosts.length; host++) {
