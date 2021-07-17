@@ -1,5 +1,9 @@
 let updating_storage = false;
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function getItemFromLocal(item, default_value) {
     while (updating_storage) {
         await sleep(500);

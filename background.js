@@ -1,10 +1,6 @@
 let badges = {};
 var notificationsAllowed = true;
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 function notifyPortScanning() {
     browser.notifications.create("port-scanning-notification", {
         "type": "basic",
