@@ -28,11 +28,12 @@ If you are feeling generous or really like my work, consider donating or sponsor
 
 ## Test HTTP / HTTPS Portscanning
 - Site where you can test if HTTP port scanning works: https://defuse.ca/in-browser-port-scanning.htm
+- Site where you can test if HTTP port scanning works: https://inteltechniques.com/logger/
 - Click CTRL + Shift + I to see the networking tab where the blocked port scans will be shown.
 
 ## Test Websocket Portscanning
 - Site where you can test if WebSocket port scanning works: http://frontend-overflowstack.com/
-- Site where you can test if WebSocket port scanning works: https://discord.gg/WxkzWjfsNk
+- Site where you can test if WebSocket port scanning works: https://discord.com/invite/32ZNZVN
 - Click CTRL + Shift + I to see the networking tab where the blocked port scans will be shown.
 
 ## Test sites that port scan you or otherwise run ThreatMetrix scripts (Wall of Shame!)
