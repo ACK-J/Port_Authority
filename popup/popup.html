@@ -14,50 +14,50 @@
 </head>
 
 <body>
-        <div class="container-fluid"
-        style="min-width: 200px;">
+    <div class="container-fluid" style="min-width: 200px;">
         <div class="row">
-	<nav class="col-12 navbar-margin navbar banner-color d-flex align-items-center justify-content-center">
+            <nav class="col-12 navbar-margin navbar banner-color d-flex align-items-center justify-content-center">
                 <div class="navbar-brand d-flex">
                     <img src="../icons/logo-32.png" width="32" height="32" alt="">
                     <span style="color: #FFFFFF;" class="brand ml-2 font-weight-bold">
                         Port Authority
                     </span>
-
                 </div>
             </nav>
-            </div>
+        </div>
 
-            <div class="row" id="config_section">
-                <div class="col-12 ">
-                    <h5>Options</h5>
-                </div>
-                <div class="col-sm-1">
-                    <label class="switch">
-                        <input type="checkbox" id="globalStatusPortAuthority">
-                        <span class="slider round"></span>
-                        <label id="configs_switch_filter" class=bold>Blocking</label>
-                    </label>
-                </div>
+        <div class="row" id="config_section">
+            <div class="col-12">
+                <h5>Options</h5>
             </div>
-            
-            <div class="row" id="config_section">
-                <div class="col-sm-1">
-                    <label class="switch">
-                        <input type="checkbox" id="notificationStatusPortAuthority">
-                        <span class="slider round"></span>
-                        <label id="configs_switch_filter" class=bold>Notifications</label>
-                    </label>
-                </div>
+            <div class="col-sm-1">
+                <label class="switch">
+                    <input type="checkbox" id="globalStatusPortAuthority">
+                    <span class="slider round"></span>
+                    <label id="configs_switch_filter" class=bold>Blocking</label>
+                </label>
             </div>
-            
+        </div>
+
+        <div class="row" id="config_section">
+            <div class="col-sm-1">
+                <label class="switch">
+                    <input type="checkbox" id="notificationStatusPortAuthority">
+                    <span class="slider round"></span>
+                    <label id="configs_switch_filter" class=bold>Notifications</label>
+                </label>
+            </div>
+        </div>
+
         <div class="row" id="blocked_data_display">
         </div>
         <br />
     </div>
     <script type="module" src="switch.js"></script>
     <script type="module" src="notifications.js"></script>
+
+    <script src="scripts/bootstrap.bundle.min.js"></script>
     <script type="module" src="PopupUI.js"></script>
 </body>
-</html>
 
+</html>
