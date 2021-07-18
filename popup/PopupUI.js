@@ -68,9 +68,6 @@ function buildCollapseWrapperAndToggle(data_target, collapse_title, toggle_text)
     titile_toggle_wrapper.appendChild(collapse_toggle_button);
 
     collapse_wrapper.appendChild(titile_toggle_wrapper);
-    console.log(collapse_wrapper);
-    console.log(titile_toggle_wrapper);
-    console.log(collapse_toggle_button);
 
     return collapse_wrapper;
 }
@@ -110,7 +107,7 @@ async function updateBlockedPortsDisplay() {
         for (let i_host = 0; i_host < hosts.length; i_host++) {
             // Build the wrapper for displaying the host name and ports blocked
             const host = hosts[i_host];
-            const host_id = host.replaceAll(/./g, '-')
+            const host_id = `host${i_host}`
             const host_wrapper = buildCollapseWrapperAndToggle(host_id, host, "view ports");
 
             // build the list of blocked ports then append it to the wrapper
@@ -124,10 +121,10 @@ async function updateBlockedPortsDisplay() {
                 const port = ports[i_port];
                 const port_element = document.createElement("div");
                 port_element.innerHTML = port;
-                port_element.classList.add("pe-2")
+                port_element.classList.add("ps-2")
                 hosts_ul.appendChild(port_element);
             }
-            console.log(hosts_ul)
+
             host_wrapper.appendChild(hosts_ul);
             all_ports_wrapper.appendChild(host_wrapper);
         }
@@ -178,7 +175,7 @@ async function updateBlockedHostsDisplay() {
 
             // Create the list element for the blocked host and set the text to the hosts name
             const host_li = document.createElement("li");
-            host_li.classList.add("pe-1");
+            host_li.classList.add("ps-2");
             host_li.innerHTML = host_name;
 
             // Add the list element to the hosts UL
@@ -200,11 +197,10 @@ async function updateBlockedHostsDisplay() {
 
 // Helper function for calling all DOM-Modifying functions
 function buildDataMarkup() {
-    // Shows any and all ports that were blocked from scanning. Ports are sorted based on host that attempted the port scan
-    updateBlockedPortsDisplay();
     // Shows any and all hosts that attempted to connect to a tracking service
     updateBlockedHostsDisplay();
-
+    // Shows any and all ports that were blocked from scanning. Ports are sorted based on host that attempted the port scan
+    updateBlockedPortsDisplay();
 
 }
 
