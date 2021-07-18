@@ -89,6 +89,7 @@ const addBlockedTrackingHost = async (url, tabIdString) => {
     }
 
     blocked_hosts_tabs[tabId] = blocked_hosts;
+    
 
     await setItemInLocal("blocked_hosts", blocked_hosts_tabs);
     return;
@@ -227,6 +228,18 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
             alerted: 0,
             lastURL: tabInfo.url
         };
+        /*let blocked_ports_object = await browser.storage.local.get({ "blocked_ports": {} });
+        blocked_ports = {};
+        blocked_ports[tabId] = tab_hosts;
+        await setItemInLocal("blocked_ports", blocked_ports);
+        
+        
+        let blocked_hosts_object = await browser.storage.local.get({ "blocked_hosts": {} });
+        // Data is stored as a valid JSON string, parse the data into an array (blocked hosts should be an array of domains)
+        blocked_hosts_tabs = {};
+        let blocked_hosts = blocked_hosts_tabs[tabId] || [];
+        blocked_hosts_tabs[tabId] = blocked_hosts;
+        await setItemInLocal("blocked_hosts", blocked_hosts_tabs);*/
     }
 }
 

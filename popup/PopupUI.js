@@ -51,10 +51,13 @@ function buildCollapseWrapperAndToggle(data_target, collapse_title, toggle_text)
     // Title of the collapse
     const title_element = document.createElement("h6");
     title_element.innerHTML = collapse_title;
+    title_element.classList.add("bold-text");
     titile_toggle_wrapper.appendChild(title_element);
+    
 
     // Collpase toggle button
     const collapse_toggle_button = document.createElement("button");
+
     collapse_toggle_button.innerHTML = toggle_text;
     const collapse_attributes = {
         type: "button",
@@ -87,7 +90,8 @@ async function updateBlockedPortsDisplay() {
 
     // Build the header/title element for this section
     const all_ports_header = document.createElement(SECTION_HEADER_ELEMENT);
-    all_ports_header.innerHTML = "Blocked Port Scans";
+    all_ports_header.innerHTML = "Blocked Port Scans:";
+    all_ports_header.classList.add("bold-text");
 
     // Add the header to the blocked hosts wrapper element
     all_ports_wrapper.appendChild(all_ports_header);
@@ -108,7 +112,7 @@ async function updateBlockedPortsDisplay() {
             // Build the wrapper for displaying the host name and ports blocked
             const host = hosts[i_host];
             const host_id = `host${i_host}`
-            const host_wrapper = buildCollapseWrapperAndToggle(host_id, host, "view ports");
+            const host_wrapper = buildCollapseWrapperAndToggle(host_id, host, "View Ports");
 
             // build the list of blocked ports then append it to the wrapper
             const hosts_ul = document.createElement("div");
@@ -152,7 +156,8 @@ async function updateBlockedHostsDisplay() {
 
     // Build the header/title element for this section
     const host_header = document.createElement(SECTION_HEADER_ELEMENT);
-    host_header.innerHTML = "Blocked Tracking Scripts";
+    host_header.innerHTML = "Blocked Tracking Scripts:";
+    host_header.classList.add("bold-text");
 
     // Add the header to the blocked hosts wrapper element
     hosts_wrapper.appendChild(host_header);
@@ -175,7 +180,7 @@ async function updateBlockedHostsDisplay() {
 
             // Create the list element for the blocked host and set the text to the hosts name
             const host_li = document.createElement("li");
-            host_li.classList.add("ps-2");
+            host_li.classList.add("ps-2", "brand-text-color", "bold-text");
             host_li.innerHTML = host_name;
 
             // Add the list element to the hosts UL

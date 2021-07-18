@@ -19,7 +19,10 @@
 body {
     font-size: 14px;
     width: 275px;
+    overflow-y:  auto;
+    overflow-x: hidden;
 }
+
 
 .small-version {
     font-size: 10px;
@@ -27,6 +30,14 @@ body {
 
 .banner-color {
     background-color:#800000;
+}
+
+.brand-text-color {
+    color:#800000;
+}
+
+.bold-text{
+    font-weight: bold;
 }
 
 .brand {
