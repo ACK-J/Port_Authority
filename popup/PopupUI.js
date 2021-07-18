@@ -27,7 +27,7 @@ async function updateBlockedPortsDisplay() {
 
     // Build the header/title element for this section
     const all_ports_header = document.createElement(SECTION_HEADER_ELEMENT);
-    all_ports_header.innerHTML = "Blocked port scans";
+    all_ports_header.innerHTML = "Blocked Port Scans";
 
     // Add the header to the blocked hosts wrapper element
     all_ports_wrapper.appendChild(all_ports_header);
@@ -92,7 +92,7 @@ async function updateBlockedHostsDisplay() {
 
     // Build the header/title element for this section
     const host_header = document.createElement(SECTION_HEADER_ELEMENT);
-    host_header.innerHTML = "Blocked tracking scripts";
+    host_header.innerHTML = "Blocked Tracking Scripts";
 
     // Add the header to the blocked hosts wrapper element
     hosts_wrapper.appendChild(host_header);
@@ -141,6 +141,8 @@ function buildDataMarkup() {
     updateBlockedPortsDisplay();
     // Shows any and all hosts that attempted to connect to a tracking service
     updateBlockedHostsDisplay();
+
+
 }
 
 buildDataMarkup();
