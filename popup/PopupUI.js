@@ -204,6 +204,8 @@ function buildDataMarkup() {
     updateBlockedPortsDisplay();
     // Shows any and all hosts that attempted to connect to a tracking service
     updateBlockedHostsDisplay();
+
+
 }
 
 buildDataMarkup();
