@@ -100,6 +100,7 @@ async function updateBlockedPortsDisplay() {
     try {
         // Grab the blocked ports from the extensions local storage.
         const blocked_ports_object = await browser.storage.local.get({ "blocked_ports": {} });
+        // Extension storage returns {blocked_ports: data} because..... I actually don't know why
         const blocked_ports_string = blocked_ports_object.blocked_ports;
 
         const blocked_ports_tabs = JSON.parse(blocked_ports_string);
