@@ -41,18 +41,18 @@ function buildSectionWrapper() {
  * @returns {element} A collapse Wrapper with a button to toggle the collapse
  */
 function buildCollapseWrapperAndToggle(data_target, collapse_title, toggle_text) {
-    // Wrapper too hold the title, toggle, and collapse element
+    // Wrapper to hold the title, toggle, and collapse element
     const collapse_wrapper = document.createElement("div");
-    const titile_toggle_wrapper = document.createElement("div");
+    const title_toggle_wrapper = document.createElement("div");
 
     // Wrapper to hold the title and toggle button
-    titile_toggle_wrapper.classList.add("d-flex", "justify-content-between", "align-items-center");
+    title_toggle_wrapper.classList.add("d-flex", "justify-content-between", "align-items-center");
 
     // Title of the collapse
     const title_element = document.createElement("h6");
     title_element.innerHTML = collapse_title;
     title_element.classList.add("bold-text");
-    titile_toggle_wrapper.appendChild(title_element);
+    title_toggle_wrapper.appendChild(title_element);
     
 
     // Collpase toggle button
@@ -68,9 +68,9 @@ function buildCollapseWrapperAndToggle(data_target, collapse_title, toggle_text)
         "aria-controls": data_target
     };
     setAttributesOnElement(collapse_toggle_button, collapse_attributes);
-    titile_toggle_wrapper.appendChild(collapse_toggle_button);
+    title_toggle_wrapper.appendChild(collapse_toggle_button);
 
-    collapse_wrapper.appendChild(titile_toggle_wrapper);
+    collapse_wrapper.appendChild(title_toggle_wrapper);
 
     return collapse_wrapper;
 }
@@ -206,7 +206,6 @@ function buildDataMarkup() {
     updateBlockedHostsDisplay();
     // Shows any and all ports that were blocked from scanning. Ports are sorted based on host that attempted the port scan
     updateBlockedPortsDisplay();
-
 }
 
 buildDataMarkup();

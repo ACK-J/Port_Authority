@@ -46,7 +46,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     const tab_hosts = blocked_ports[tabId] || {};
     const hosts_ports = tab_hosts[host];
     if (Array.isArray(hosts_ports)) {
-        // Add the port too the array of blocked ports for this host IFF the port doesn't exist
+        // Add the port to the array of blocked ports for this host IFF the port doesn't exist
         if (hosts_ports.indexOf(port) === -1) {
             const hosts_ports = tab_hosts[host].concat([port])
             tab_hosts[host] = hosts_ports
@@ -219,7 +219,7 @@ function increaseBadged(request) {
  * And if url has changed.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
-function handleUpdated(tabId, changeInfo, tabInfo) {
+async function handleUpdated(tabId, changeInfo, tabInfo) {
     if (!badges[tabId] || !changeInfo.url) return;
 
     if (badges[tabId].lastURL !== changeInfo.url) {
@@ -228,18 +228,16 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
             alerted: 0,
             lastURL: tabInfo.url
         };
-        /*let blocked_ports_object = await browser.storage.local.get({ "blocked_ports": {} });
-        blocked_ports = {};
-        blocked_ports[tabId] = tab_hosts;
-        await setItemInLocal("blocked_ports", blocked_ports);
         
+	// Clear out the blocked ports for the current tab
+        const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
+	blocked_ports_object[tabId] = {}
+	await setItemInLocal("blocked_ports", blocked_ports_object)
         
-        let blocked_hosts_object = await browser.storage.local.get({ "blocked_hosts": {} });
-        // Data is stored as a valid JSON string, parse the data into an array (blocked hosts should be an array of domains)
-        blocked_hosts_tabs = {};
-        let blocked_hosts = blocked_hosts_tabs[tabId] || [];
-        blocked_hosts_tabs[tabId] = blocked_hosts;
-        await setItemInLocal("blocked_hosts", blocked_hosts_tabs);*/
+        // Clear out the hosts for the current tab
+        const blocked_hosts_object = await getItemFromLocal("blocked_hosts", []);
+	blocked_hosts_object[tabId] = []
+	await setItemInLocal("blocked_hosts", blocked_hosts_object)
     }
 }
 
