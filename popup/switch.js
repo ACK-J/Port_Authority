@@ -1,19 +1,24 @@
 function toggleEnabled(ev){
-  browser.runtime.getBackgroundPage().then((bg) => {
-    if (ev.target.checked){
-      bg.start();
-    }else{
-      bg.stop();
-    }
-  });
+  browser.runtime.sendMessage({type: 'toggleEnabled', value: ev.target.checked});
 }
 
-browser.runtime.getBackgroundPage().then((bg) => {
-  document.getElementById("globalStatusPortAuthority").checked = bg.isListening();
+function setNotificationsAllowed(ev){
+  browser.runtime.sendMessage({type: 'setNotificationsAllowed', value: ev.target.checked});
+}
+
+browser.runtime.sendMessage({type: 'popupInit'}).then((response) => {
+  document.getElementById("globalStatusPortAuthority").checked = response.isListening;
 
   // Add an event listener to the switch
   document.getElementById('globalStatusPortAuthority').addEventListener("change", toggleEnabled);
 
+
+  document.getElementById("notificationStatusPortAuthority").checked = response.notificationsAllowed;
+
+  // Add an event listener to the switch
+  document.getElementById('notificationStatusPortAuthority').addEventListener("change", setNotificationsAllowed);
+
+
   // Make sure this doesn't run too early
-  setTimeout(() => document.documentElement.classList.remove('loading'), 0);
+  setTimeout(() => document.documentElement.classList.remove('loading'), 5);
 });
