@@ -20,5 +20,5 @@ browser.runtime.sendMessage({type: 'popupInit'}).then((response) => {
 
 
   // Make sure this doesn't run too early
-  setTimeout(() => document.documentElement.classList.remove('loading'), 0);
+  setTimeout(() => document.documentElement.classList.remove('loading'), 5);
 });
