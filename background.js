@@ -176,12 +176,8 @@ function stop() {  // Disables blocking
 
 }
 
-function toggleNotificationsAllowed() {  // toggles notifications
-    notificationsAllowed = !notificationsAllowed;
-}
-
-function isNotifying() {  // returns if notifications are on
-    return notificationsAllowed;
+function setNotificationsAllowed(value) {  // toggles notifications
+    notificationsAllowed = value;
 }
 
 function isListening() { // returns if blocking is on
@@ -240,6 +236,27 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
 	await setItemInLocal("blocked_hosts", blocked_hosts_object)
     }
 }
+
+function onMessage(message, sender, sendResponse) {
+  switch(message.type) {
+    case 'popupInit':
+      sendResponse({
+        isListening: isListening(),
+        notificationsAllowed,
+      });
+      break;
+    case 'toggleEnabled':
+      message.value ? start() : stop();
+      break;
+    case 'setNotificationsAllowed':
+      setNotificationsAllowed(message.value);
+      break;
+    default:
+      console.warn('Port Authority: unknown message: ', message);
+      break;
+  }
+}
+browser.runtime.onMessage.addListener(onMessage);
 
 start();
 // Call by each tab is updated.
