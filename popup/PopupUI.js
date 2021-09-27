@@ -50,7 +50,7 @@ function buildCollapseWrapperAndToggle(data_target, collapse_title, toggle_text)
 
     // Title of the collapse
     const title_element = document.createElement("h6");
-    title_element.innerHTML = collapse_title;
+    title_element.innerText = collapse_title;
     title_element.classList.add("bold-text");
     title_toggle_wrapper.appendChild(title_element);
     
@@ -58,7 +58,7 @@ function buildCollapseWrapperAndToggle(data_target, collapse_title, toggle_text)
     // Collpase toggle button
     const collapse_toggle_button = document.createElement("button");
 
-    collapse_toggle_button.innerHTML = toggle_text;
+    collapse_toggle_button.innerText = toggle_text;
     const collapse_attributes = {
         type: "button",
         class: "btn btn-link",
@@ -90,7 +90,7 @@ async function updateBlockedPortsDisplay() {
 
     // Build the header/title element for this section
     const all_ports_header = document.createElement(SECTION_HEADER_ELEMENT);
-    all_ports_header.innerHTML = "Blocked Port Scans:";
+    all_ports_header.innerText = "Blocked Port Scans:";
     all_ports_header.classList.add("bold-text");
 
     // Add the header to the blocked hosts wrapper element
@@ -125,7 +125,7 @@ async function updateBlockedPortsDisplay() {
             for (let i_port = 0; i_port < ports.length; i_port++) {
                 const port = ports[i_port];
                 const port_element = document.createElement("div");
-                port_element.innerHTML = port;
+                port_element.innerText = port;
                 port_element.classList.add("ps-2")
                 hosts_ul.appendChild(port_element);
             }
@@ -139,7 +139,7 @@ async function updateBlockedPortsDisplay() {
     // If an error occurs clear any created elements
     catch (error) {
         console.log(error);
-        all_ports_wrapper.innerHTML = "";
+        all_ports_wrapper.innerText = "";
         // Add the header to the blocked hosts wrapper element
         all_ports_wrapper.appendChild(all_ports_header);
     }
@@ -157,7 +157,7 @@ async function updateBlockedHostsDisplay() {
 
     // Build the header/title element for this section
     const host_header = document.createElement(SECTION_HEADER_ELEMENT);
-    host_header.innerHTML = "Blocked Tracking Scripts:";
+    host_header.innerText = "Blocked Tracking Scripts:";
     host_header.classList.add("bold-text");
 
     // Add the header to the blocked hosts wrapper element
@@ -182,7 +182,7 @@ async function updateBlockedHostsDisplay() {
             // Create the list element for the blocked host and set the text to the hosts name
             const host_li = document.createElement("li");
             host_li.classList.add("ps-2", "brand-text-color", "bold-text");
-            host_li.innerHTML = host_name;
+            host_li.innerText = host_name;
 
             // Add the list element to the hosts UL
             hosts_ul.appendChild(host_li);
@@ -191,7 +191,7 @@ async function updateBlockedHostsDisplay() {
     }
     // Something went wrong, empty the ul to be safe
     catch (error) {
-        hosts_ul.innerHTML = "";
+        hosts_ul.innerText = "";
     }
     // Add the list of blocked hosts to the wrapper containing the section header
     hosts_wrapper.appendChild(hosts_ul);
