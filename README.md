@@ -12,7 +12,7 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 ## What does this addon do?
 1. Blocks all possible types of port scanning through your browser (HTTP/HTTPS/WS/WSS/FTP/FTPS)
 2. Dynamically blocks the ThreatMetrix tracking scripts made by one of the largest and least ethical data brokers in the world (Lexis Nexis)
-3. Easily auditable, with the core functionality being about 150 lines of code. [HERE](https://github.com/ACK-J/Port_Authority/blob/main/background.js)
+3. Easily auditable, with the core functionality being about 250 lines of code. [HERE](https://github.com/ACK-J/Port_Authority/blob/main/background.js)
 4. Gives a nice notification when one of the above scenarios are blocked
 5. This addon doesn't store/transmit any data or metadata about you or your requests... because, ya know, privacy
 
