@@ -28,7 +28,7 @@ function notifyThreatMetrix() {
 const addBlockedPortToHost = async (url, tabIdString) => {
     const tabId = parseInt(tabIdString);
     const host = url.host.split(":")[0];
-    const port = url.port || getPortForProtocol(url.protocol);
+    const port = "" + (url.port || getPortForProtocol(url.protocol));
 
     // Grab the blocked ports object from extensions storage
     const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
@@ -47,7 +47,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     const hosts_ports = tab_hosts[host];
     if (Array.isArray(hosts_ports)) {
         // Add the port to the array of blocked ports for this host IFF the port doesn't exist
-        if (hosts_ports.indexOf(port) === -1) {
+        if (hosts_ports.indexOf(port) === -1 && port != "undefined") {
             const hosts_ports = tab_hosts[host].concat([port])
             tab_hosts[host] = hosts_ports
         }
