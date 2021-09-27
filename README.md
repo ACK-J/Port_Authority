@@ -80,5 +80,3 @@ USING SOCKS5 PROXIES WITH THIS ADDON WILL CAUSE DNS LEAKS DUE TO HOW FIREFOX HAN
 
 # ToDo:
 - Port to Chrome
-- Add functionality to UI
-   - Make blocked domains and ports show up in UI
