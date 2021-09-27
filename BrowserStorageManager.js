@@ -24,7 +24,7 @@ async function setItemInLocal(key, value) {
     return;
 }
 
-async function clearLocal() {
+async function clearLocalItems() {
     while (updating_storage) {
         await sleep(500);
     }

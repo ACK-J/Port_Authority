@@ -37,9 +37,9 @@ const addBlockedPortToHost = async (url, tabIdString) => {
 
     let blocked_ports;
     try {
-        blocked_ports = JSON.parse(blocked_ports_string)
-    } catch {
-        blocked_ports = {}
+        blocked_ports = JSON.parse(blocked_ports_string);
+    } catch (error) {
+        blocked_ports = {};
     }
 
     // Grab the array of ports blocked for the host url
@@ -47,9 +47,9 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     const hosts_ports = tab_hosts[host];
     if (Array.isArray(hosts_ports)) {
         // Add the port to the array of blocked ports for this host IFF the port doesn't exist
-        if (hosts_ports.indexOf(port) === -1 && port != "undefined") {
-            const hosts_ports = tab_hosts[host].concat([port])
-            tab_hosts[host] = hosts_ports
+        if (hosts_ports.indexOf(port) === -1 && typeof port != 'undefined') {
+            const hosts_ports = tab_hosts[host].concat([port]);
+            tab_hosts[host] = hosts_ports;
         }
 
     } else {
@@ -78,8 +78,8 @@ const addBlockedTrackingHost = async (url, tabIdString) => {
     let blocked_hosts_tabs;
     try {
         blocked_hosts_tabs = JSON.parse(blocked_hosts_string)
-    } catch {
-        blocked_hosts_tabs = {}
+    } catch (error) {
+        blocked_hosts_tabs = {};
     }
 
     let blocked_hosts = blocked_hosts_tabs[tabId] || [];
@@ -150,8 +150,9 @@ async function cancel(requestDetails) {
 } // end cancel()
 
 
-function start() {  // Enables blocking
+async function start() {  // Enables blocking
     try {
+        await browser.storage.local.clear();
         localStorage.setItem("state", true);
         //Add event listener
         browser.webRequest.onBeforeRequest.addListener(
@@ -160,7 +161,7 @@ function start() {  // Enables blocking
             ["blocking"] // if cancel() returns true block the request.
         );
     } catch (e) {
-        console.log("START() ", e)
+        console.log("START() ", e);
     }
 
 }
@@ -171,7 +172,7 @@ function stop() {  // Disables blocking
         //Remove event listener
         browser.webRequest.onBeforeRequest.removeListener(cancel);
     } catch (e) {
-        console.log("STOP() ", e)
+        console.log("STOP() ", e);
     }
 
 }
@@ -226,14 +227,14 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
         };
         
 	// Clear out the blocked ports for the current tab
-        const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
-	blocked_ports_object[tabId] = {}
-	await setItemInLocal("blocked_ports", blocked_ports_object)
+	const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
+	blocked_ports_object[tabId] = {};
+	await setItemInLocal("blocked_ports", blocked_ports_object);
         
-        // Clear out the hosts for the current tab
-        const blocked_hosts_object = await getItemFromLocal("blocked_hosts", []);
-	blocked_hosts_object[tabId] = []
-	await setItemInLocal("blocked_hosts", blocked_hosts_object)
+	// Clear out the hosts for the current tab
+	const blocked_hosts_object = await getItemFromLocal("blocked_hosts", []);
+	blocked_hosts_object[tabId] = [];
+	await setItemInLocal("blocked_hosts", blocked_hosts_object);
     }
 }
 
