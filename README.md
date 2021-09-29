@@ -17,7 +17,7 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 5. This addon doesn't store/transmit any data or metadata about you or your requests... because, ya know, privacy
 
 ## Donations ❤️
-If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps (even $1).
+If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps.
 - https://github.com/sponsors/ACK-J
 - Monero Address: `42zDzRjrCxadRVDcjWRLWAgsgeiQvB1E2R3j9TaWfLKGFB6YrQTLWj2QE3ioaLwhgK8V9wi29HNKd2gz3yAkGLLCAmQwCk7`
 - Z-Cash Address: `zs1u6s644dagu62hgq4zhpt2ywma70ccz7y60qsltf96tc7u2uxng3caqhlqnfsh96qlcymzgddaav`
