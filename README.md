@@ -26,6 +26,9 @@ If you are feeling generous or really like my work, consider donating or sponsor
 - Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/16
 - Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
+## Test All Forms of Port Scanning 
+- A webpage I made to test all forms of scanning in one location: https://www.g666gle.me/PortScan.html
+
 ## Test HTTP / HTTPS Portscanning
 - Site where you can test if HTTP port scanning works: https://defuse.ca/in-browser-port-scanning.htm
 - Site where you can test if HTTP port scanning works: https://inteltechniques.com/logger/
