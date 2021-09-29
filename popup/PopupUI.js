@@ -98,43 +98,48 @@ async function updateBlockedPortsDisplay() {
 
 
     try {
-        // Grab the blocked ports from the extensions local storage.
-        const blocked_ports_object = await browser.storage.local.get({ "blocked_ports": {} });
-        // Extension storage returns {blocked_ports: data} because..... I actually don't know why
-        const blocked_ports_string = blocked_ports_object.blocked_ports;
+	// Grab the blocked ports from the extensions local storage.
+	const blocked_ports_object = await browser.storage.local.get({ "blocked_ports": {} });
+	
+        // Check if the item exists in local storage
+        if (Object.entries(blocked_ports_object["blocked_ports"]).length !== 0){
+		// Extension storage returns {blocked_ports: data} because..... I actually don't know why
+		const blocked_ports_string = blocked_ports_object.blocked_ports;
 
-        const blocked_ports_tabs = JSON.parse(blocked_ports_string);
-        const blocked_ports = blocked_ports_tabs[tabId] || {};
+		const blocked_ports_tabs = JSON.parse(blocked_ports_string);
+		const blocked_ports = blocked_ports_tabs[tabId] || {};
 
-        const hosts = Object.keys(blocked_ports);
+		const hosts = Object.keys(blocked_ports);
 
-        // build a tree for each host that was blocked
-        for (let i_host = 0; i_host < hosts.length; i_host++) {
-            // Build the wrapper for displaying the host name and ports blocked
-            const host = hosts[i_host];
-            const host_id = `host${i_host}`
-            const host_wrapper = buildCollapseWrapperAndToggle(host_id, host, "View Ports");
+		// build a tree for each host that was blocked
+		for (let i_host = 0; i_host < hosts.length; i_host++) {
+		    // Build the wrapper for displaying the host name and ports blocked
+		    const host = hosts[i_host];
+		    const host_id = `host${i_host}`
+		    const host_wrapper = buildCollapseWrapperAndToggle(host_id, host, "View Ports");
 
-            // build the list of blocked ports then append it to the wrapper
-            const hosts_ul = document.createElement("div");
-            hosts_ul.id = host_id;
-            hosts_ul.classList.add("list-unstyled", "collapse");
+		    // build the list of blocked ports then append it to the wrapper
+		    const hosts_ul = document.createElement("div");
+		    hosts_ul.id = host_id;
+		    hosts_ul.classList.add("list-unstyled", "collapse");
 
-            const ports = blocked_ports[hosts[i_host]];
+		    const ports = blocked_ports[hosts[i_host]];
 
-            for (let i_port = 0; i_port < ports.length; i_port++) {
-                const port = ports[i_port];
-                const port_element = document.createElement("div");
-                port_element.innerText = port;
-                port_element.classList.add("ps-2")
-                hosts_ul.appendChild(port_element);
-            }
+	            // Add each port to the HTML
+		    for (let i_port = 0; i_port < ports.length; i_port++) {
+		        const port = ports[i_port];
+		        const port_element = document.createElement("div");
+		        port_element.innerText = port;
+		        port_element.classList.add("ps-2")
+		        hosts_ul.appendChild(port_element);
+		    }
 
-            host_wrapper.appendChild(hosts_ul);
-            all_ports_wrapper.appendChild(host_wrapper);
-        }
+		    host_wrapper.appendChild(hosts_ul);
+		    all_ports_wrapper.appendChild(host_wrapper);
+		}
 
-        blocked_data_display.appendChild(all_ports_wrapper);
+		blocked_data_display.appendChild(all_ports_wrapper);
+	} // else leave blank (prevents a JSON parsing error)
     }
     // If an error occurs clear any created elements
     catch (error) {
@@ -143,6 +148,9 @@ async function updateBlockedPortsDisplay() {
         // Add the header to the blocked hosts wrapper element
         all_ports_wrapper.appendChild(all_ports_header);
     }
+    // Append the header to the GUI
+    const blocked_data_display_ports = document.getElementById("blocked_data_display");
+    blocked_data_display_ports.appendChild(all_ports_wrapper);
 }
 
 async function updateBlockedHostsDisplay() {
@@ -196,7 +204,7 @@ async function updateBlockedHostsDisplay() {
     // Add the list of blocked hosts to the wrapper containing the section header
     hosts_wrapper.appendChild(hosts_ul);
 
-    // Append the list of blocked ports to the Popups blocked_data_display section
+    // Append the list of blocked hosts to the Popups blocked_data_display section
     const blocked_data_display = document.getElementById("blocked_data_display");
     blocked_data_display.appendChild(hosts_wrapper);
 }
