@@ -22,8 +22,8 @@ This addon blocks websites from using javascript to port scan your computer/inte
 ## Donations ❤️
 If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps.
 - https://github.com/sponsors/ACK-J
-- Monero Address `42zDzRjrCxadRVDcjWRLWAgsgeiQvB1E2R3j9TaWfLKGFB6YrQTLWj2QE3ioaLwhgK8V9wi29HNKd2gz3yAkGLLCAmQwCk7`
-- Z-Cash Address `zs1u6s644dagu62hgq4zhpt2ywma70ccz7y60qsltf96tc7u2uxng3caqhlqnfsh96qlcymzgddaav`
+- Monero Address: `42zDzRjrCxadRVDcjWRLWAgsgeiQvB1E2R3j9TaWfLKGFB6YrQTLWj2QE3ioaLwhgK8V9wi29HNKd2gz3yAkGLLCAmQwCk7`
+- Z-Cash Address: `zs1u6s644dagu62hgq4zhpt2ywma70ccz7y60qsltf96tc7u2uxng3caqhlqnfsh96qlcymzgddaav`
 
 ## Regex Explanation
 - Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/16
