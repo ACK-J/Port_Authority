@@ -1,12 +1,15 @@
-[<img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px">](https://addons.mozilla.org/en-US/firefox/addon/port-authority/)
+[<img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px">](https://addons.mozilla.org/en-US/firefox/addon/port-authority)
+
+[![Firefox Rating](https://img.shields.io/amo/stars/css-exfil-protection.svg?label=Rating&style=for-the-badge)](https://addons.mozilla.org/en-US/firefox/addon/port-authority)
+![Mozilla Add-on](https://img.shields.io/amo/v/port-authority?label=Latest%20Version&style=for-the-badge)
 
 # <sub><img src="https://user-images.githubusercontent.com/60232273/124614032-d99b3480-de41-11eb-96b9-8e830240a698.png" width="64px" height="64px"></sub> Port Authority
 
-Blocks websites from using javascript to port scan your computer/network and dynamically blocks all LexisNexis endpoints from running their invasive data collection scripts.
+This addon blocks websites from using javascript to port scan your computer/internal-network and also dynamically blocks all LexisNexis endpoints from running their invasive data collection scripts.
 
 | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|
-| <img width="1604" alt="GUI" src=https://user-images.githubusercontent.com/60232273/134932315-5f16b4c3-b330-45ec-97c6-03904e798e99.png>The GUI with options to toggle the functionality of the addon.|<img width="1604" alt="Chick-Fil-A" src="https://user-images.githubusercontent.com/60232273/125359301-141c3a00-e338-11eb-881a-7ada6fcea788.png">Chick-fil-A attempting to run ThreatMetrix scripts but being blocked by Port Authority. |<img width="1604" alt="Discord" src="https://user-images.githubusercontent.com/60232273/125358212-a0c5f880-e336-11eb-8d42-c0067b2133c0.png"> Discord port scans your computer trying to connect with the desktop Discord app.|
+| <img width="1604" alt="GUI" src=https://user-images.githubusercontent.com/60232273/134932315-5f16b4c3-b330-45ec-97c6-03904e798e99.png>The GUI allows you to toggle functionality of the addon and view blocked items.|<img width="1604" alt="Chick-Fil-A" src="https://user-images.githubusercontent.com/60232273/125359301-141c3a00-e338-11eb-881a-7ada6fcea788.png">Chick-fil-A attempting to run ThreatMetrix scripts but being blocked by Port Authority. |<img width="1604" alt="Discord" src="https://user-images.githubusercontent.com/60232273/125358212-a0c5f880-e336-11eb-8d42-c0067b2133c0.png"> Discord port scans your computer using websockets, attempting to connect with the desktop Discord app.|
 
 ----
 ## What does this addon do?
@@ -14,7 +17,7 @@ Blocks websites from using javascript to port scan your computer/network and dyn
 2. Dynamically blocks the ThreatMetrix tracking scripts made by one of the largest and least ethical data brokers in the world (Lexis Nexis)
 3. Easily auditable, with the core functionality being about 250 lines of code. [HERE](https://github.com/ACK-J/Port_Authority/blob/main/background.js)
 4. Gives a nice notification when one of the above scenarios are blocked
-5. This addon doesn't store/transmit any data or metadata about you or your requests... because, ya know, privacy
+5. This addon doesn't store/transmit/log any data or metadata about you or your requests... because, ya know, privacy
 
 ## Donations ❤️
 If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps.
@@ -82,4 +85,4 @@ USING SOCKS5 PROXIES WITH THIS ADDON WILL CAUSE DNS LEAKS DUE TO HOW FIREFOX HAN
 - There is a simple fix for this. Type `about:config` in your browser, accept the warning, search for `network.trr.mode` and change it to `3`
 
 # ToDo:
-- Port to Chrome
+- Port to Chromium
