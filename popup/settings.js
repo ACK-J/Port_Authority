@@ -26,7 +26,7 @@ async function setItemInLocal(key, value) {
 async function load_allowed_domains(){
     const allowed_domains_list_element = document.getElementById("allowedDomainsListID");
 
-    const allowed_domains_object = await browser.storage.local.get("allowed_domain_list")
+    const allowed_domains_object = await browser.storage.local.get("allowed_domain_list");
     const allowed_domains_string = allowed_domains_object['allowed_domain_list'];
     let allowed_domains_list = JSON.parse(allowed_domains_string);
 
