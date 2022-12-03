@@ -47,7 +47,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     const hosts_ports = tab_hosts[host];
     if (Array.isArray(hosts_ports)) {
         // Add the port to the array of blocked ports for this host IFF the port doesn't exist
-        if (hosts_ports.indexOf(port) === -1 && typeof port != 'undefined') {
+        if (hosts_ports.indexOf(port) === -1 && port !== 'undefined') {
             const hosts_ports = tab_hosts[host].concat([port]);
             tab_hosts[host] = hosts_ports;
         }
@@ -104,6 +104,16 @@ async function cancel(requestDetails) {
     // This reduces having to check this conditional multiple times
     let is_requested_local = requestDetails.url.search(local_filter);
 
+    const allowed_domains_object = await browser.storage.local.get("allowed_domain_list")
+    const allowed_domains_string = allowed_domains_object['allowed_domain_list'];
+    let allowed_domains_list = JSON.parse(allowed_domains_string);
+
+    let check_allowed_url = new URL(requestDetails.originUrl)
+    // Check if the requesting domain is in the whitelist
+    if (allowed_domains_list.includes(check_allowed_url.host.replace(/^(www\.)/,""))){
+        return { cancel: false };
+    }
+
     // Make sure we are not searching the CNAME of local addresses
     if (is_requested_local !== 0) {
         // Parse the URL
@@ -129,7 +139,6 @@ async function cancel(requestDetails) {
     if (is_requested_local === 0) {
         // Check if the current website visited is a local address
         if (requestDetails.originUrl.search(local_filter) !== 0) {
-
             // Increase the badge counter
             let tabId = requestDetails.tabId;
             increaseBadged(requestDetails);
@@ -139,7 +148,6 @@ async function cancel(requestDetails) {
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
                 notifyPortScanning();
                 badges[tabId].alerted += 1;
-
             }
             // Cancel the request
             return { cancel: true };
@@ -154,6 +162,7 @@ async function start() {  // Enables blocking
     try {
         await browser.storage.local.clear();
         localStorage.setItem("state", true);
+        setItemInLocal("allowed_domain_list", []);
         //Add event listener
         browser.webRequest.onBeforeRequest.addListener(
             cancel,

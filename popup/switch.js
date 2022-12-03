@@ -6,6 +6,10 @@ function setNotificationsAllowed(ev){
   browser.runtime.sendMessage({type: 'setNotificationsAllowed', value: ev.target.checked});
 }
 
+function settingsClicked(ev){
+  browser.runtime.openOptionsPage();
+}
+
 browser.runtime.sendMessage({type: 'popupInit'}).then((response) => {
   document.getElementById("globalStatusPortAuthority").checked = response.isListening;
 
@@ -18,6 +22,8 @@ browser.runtime.sendMessage({type: 'popupInit'}).then((response) => {
   // Add an event listener to the switch
   document.getElementById('notificationStatusPortAuthority').addEventListener("change", setNotificationsAllowed);
 
+  // Change to settings page
+  document.getElementById('settings').addEventListener("click", settingsClicked);
 
   // Make sure this doesn't run too early
   setTimeout(() => document.documentElement.classList.remove('loading'), 5);
