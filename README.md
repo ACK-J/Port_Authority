@@ -24,7 +24,7 @@ If you are feeling generous or really like my work, consider donating
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
 
 ## Regex Explanation
-- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/16
+- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/17
 - Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
 ## Test All Forms of Port Scanning 
