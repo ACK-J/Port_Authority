@@ -20,8 +20,7 @@ This addon blocks websites from using javascript to port scan your computer/inte
 5. This addon doesn't store/transmit/log any data or metadata about you or your requests... because, ya know, privacy
 
 ## Donations ❤️
-If you are feeling generous or really like my work, consider donating or sponsoring my GitHub :) Any small amount helps.
-- https://github.com/sponsors/ACK-J
+If you are feeling generous or really like my work, consider donating
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
 
 ## Regex Explanation
