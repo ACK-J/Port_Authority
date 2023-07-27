@@ -12,10 +12,11 @@ async function getItemFromLocal(item, default_value) {
     const value_from_storage = await browser.storage.local.get({ [item]: default_value });
     updating_storage = false;
 
-    if (value_from_storage) {
-        return JSON.parse(value_from_storage);
+    try{
+        return JSON.parse(value_from_storage[item]);
+    }catch {
+        return default_value;
     }
-    return value_from_storage;
 }
 
 async function setItemInLocal(key, value) {
@@ -23,7 +24,8 @@ async function setItemInLocal(key, value) {
         await sleep(500);
     }
     updating_storage = true;
-    await browser.storage.local.set({ [key]: JSON.stringify(value) });
+    const stringifiedValue = JSON.stringify(value);
+    await browser.storage.local.set({ [key]: stringifiedValue });
     updating_storage = false;
     return;
 }

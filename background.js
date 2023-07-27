@@ -31,16 +31,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     const port = "" + (url.port || getPortForProtocol(url.protocol));
 
     // Grab the blocked ports object from extensions storage
-    const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
-    // Extension storage returns {blocked_ports: data} because..... I actually don't know why
-    const blocked_ports_string = blocked_ports_object.blocked_ports;
-
-    let blocked_ports;
-    try {
-        blocked_ports = JSON.parse(blocked_ports_string);
-    } catch (error) {
-        blocked_ports = {};
-    }
+    const blocked_ports = await getItemFromLocal("blocked_ports", {});
 
     // Grab the array of ports blocked for the host url
     const tab_hosts = blocked_ports[tabId] || {};
@@ -72,15 +63,7 @@ const addBlockedTrackingHost = async (url, tabIdString) => {
     const tabId = parseInt(tabIdString);
     const host = url.host;
 
-    const blocked_hosts_object = await getItemFromLocal("blocked_hosts", []);
-    const blocked_hosts_string = blocked_hosts_object.blocked_hosts;
-
-    let blocked_hosts_tabs;
-    try {
-        blocked_hosts_tabs = JSON.parse(blocked_hosts_string)
-    } catch (error) {
-        blocked_hosts_tabs = {};
-    }
+    const blocked_hosts_tabs = await getItemFromLocal("blocked_hosts", {});
 
     let blocked_hosts = blocked_hosts_tabs[tabId] || [];
 
@@ -104,9 +87,7 @@ async function cancel(requestDetails) {
     // This reduces having to check this conditional multiple times
     let is_requested_local = requestDetails.url.search(local_filter);
 
-    const allowed_domains_object = await browser.storage.local.get("allowed_domain_list")
-    const allowed_domains_string = allowed_domains_object['allowed_domain_list'];
-    let allowed_domains_list = JSON.parse(allowed_domains_string);
+    const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
 
     let check_allowed_url = new URL(requestDetails.originUrl)
     // Check if the requesting domain is in the whitelist
@@ -241,7 +222,7 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
 	await setItemInLocal("blocked_ports", blocked_ports_object);
         
 	// Clear out the hosts for the current tab
-	const blocked_hosts_object = await getItemFromLocal("blocked_hosts", []);
+	const blocked_hosts_object = await getItemFromLocal("blocked_hosts", {});
 	blocked_hosts_object[tabId] = [];
 	await setItemInLocal("blocked_hosts", blocked_hosts_object);
     }
