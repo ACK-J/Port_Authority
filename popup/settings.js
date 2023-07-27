@@ -1,7 +1,9 @@
 let updating_storage = false;
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
 async function getItemFromLocal(item, default_value) {
     while (updating_storage) {
         await sleep(500);
@@ -9,7 +11,11 @@ async function getItemFromLocal(item, default_value) {
     updating_storage = true;
     const value_from_storage = await browser.storage.local.get({ [item]: default_value });
     updating_storage = false;
-    return value_from_storage;
+    try{
+        return JSON.parse(value_from_storage[item]);
+    }catch {
+        return default_value;
+    }
 }
 
 async function setItemInLocal(key, value) {
@@ -19,16 +25,13 @@ async function setItemInLocal(key, value) {
     updating_storage = true;
     await browser.storage.local.set({ [key]: JSON.stringify(value) });
     updating_storage = false;
-    console.log("final")
     return;
 }
 
 async function load_allowed_domains(){
     const allowed_domains_list_element = document.getElementById("allowedDomainsListID");
 
-    const allowed_domains_object = await browser.storage.local.get("allowed_domain_list");
-    const allowed_domains_string = allowed_domains_object['allowed_domain_list'];
-    let allowed_domains_list = JSON.parse(allowed_domains_string);
+    let allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
 
     try {
         for (let domain = 0; domain < allowed_domains_list.length; domain++) {
@@ -50,9 +53,7 @@ async function saveOptions(e) {
     if (e.target[0].value.includes('.') && e.target[0].value.search(valid_domain) !== -1){
 
         // Get the list of allowed domains
-        const allowed_domains_object = await getItemFromLocal("allowed_domain_list", []);
-        const allowed_domains_string = allowed_domains_object['allowed_domain_list'];
-        let allowed_domains_list = JSON.parse(allowed_domains_string);
+        let allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
         
         // Remove any leading "www."
         e.target[0].value = e.target[0].value.replace(/^(www\.)/,"");
