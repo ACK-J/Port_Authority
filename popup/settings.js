@@ -29,41 +29,38 @@ async function setItemInLocal(key, value) {
 }
 
 async function load_allowed_domains(){
-    const allowed_domains_list_element = document.getElementById("allowedDomainsListID");
+    const allowedDomainsList = await getItemFromLocal("allowed_domain_list", []);
+    const domainDomElements = allowedDomainsList.map(domain => {
+        return `<li>${domain}</li>`;
+    })
 
-    let allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-
-    try {
-        for (let domain = 0; domain < allowed_domains_list.length; domain++) {
-            const domain_name = allowed_domains_list[domain];
-            allowed_domains_list_element.innerHTML += domain_name + "<br />";
-        }
-    
-    }
-    // Something went wrong, empty the ul to be safe
-    catch (error) {
-        allowed_domains_list_element.innerHTML = "";
-    }
+    const allowDomainsListDomElement = document.getElementById("allowedDomainsListID");
+    allowDomainsListDomElement.innerHTML = domainDomElements.join("");
 }
 
-async function saveOptions(e) {
-    // https://stackoverflow.com/questions/10306690/what-is-a-regular-expression-which-will-match-a-valid-domain-name-without-a-subd
-    let valid_domain = new RegExp("^(((?!\-))(xn\-\-)?[a-z0-9\-_]{0,61}[a-z0-9]{1,1}\.)*(xn\-\-)?([a-z0-9\-]{1,61}|[a-z0-9\-]{1,30})\.[a-z]{2,}$", "i");
-    // Make sure the user enters a valid domain name
-    if (e.target[0].value.includes('.') && e.target[0].value.search(valid_domain) !== -1){
+async function saveOptions(e) {  
+    const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
 
-        // Get the list of allowed domains
-        let allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-        
-        // Remove any leading "www."
-        e.target[0].value = e.target[0].value.replace(/^(www\.)/,"");
-        // If the domain doesn't exist in the list, add it
-        if (allowed_domains_list.indexOf(e.target[0].value) === -1) {
-            allowed_domains_list = allowed_domains_list.concat([e.target[0].value]);
-            await setItemInLocal('allowed_domain_list', allowed_domains_list);
-        }  
+    // We don't actually care about the protocol as we only compare url.host
+    // But the URL object will fail to create if no protocol is provided
+    let url = e.target[0].value + "";
+    if(url.slice(0, 4) != "http"){
+        url = "https://" + url;
     }
-  
+    try{
+        const newUrl = new URL(url);
+        const newUrlHost = newUrl.host;
+        if(allowed_domains_list.indexOf(newUrlHost) !== -1){
+            alert("This domain is already in the list.");
+            return;
+        }
+        allowed_domains_list.push(newUrlHost);
+        await setItemInLocal('allowed_domain_list', allowed_domains_list);
+    } catch (error) {
+        console.error(error);
+        alert("Please enter a valid domain.");
+        return;
+    }
   }
   
 load_allowed_domains();
