@@ -84,17 +84,19 @@ async function cancel(requestDetails) {
     // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
     let thm = new RegExp("online-metrix[.]net$", "i");
 
-    // This reduces having to check this conditional multiple times
-    let is_requested_local = requestDetails.url.search(local_filter);
-
+    
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
+    
+    const check_allowed_url = new URL(requestDetails.originUrl)
 
-    let check_allowed_url = new URL(requestDetails.originUrl)
-    // Check if the requesting domain is in the whitelist
-    if (allowed_domains_list.includes(check_allowed_url.host.replace(/^(www\.)/,""))){
+    const domainIsWhiteListed = allowed_domains_list.some((domain) => check_allowed_url.host.includes(domain));
+    if (domainIsWhiteListed){
         return { cancel: false };
     }
 
+    // This reduces having to check this conditional multiple times
+    let is_requested_local = requestDetails.url.search(local_filter);
+    
     // Make sure we are not searching the CNAME of local addresses
     if (is_requested_local !== 0) {
         // Parse the URL

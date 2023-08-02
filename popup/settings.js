@@ -1,7 +1,7 @@
 let updating_storage = false;
 
 function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function getItemFromLocal(item, default_value) {
@@ -9,11 +9,13 @@ async function getItemFromLocal(item, default_value) {
         await sleep(500);
     }
     updating_storage = true;
-    const value_from_storage = await browser.storage.local.get({ [item]: default_value });
+    const value_from_storage = await browser.storage.local.get({
+        [item]: default_value,
+    });
     updating_storage = false;
-    try{
+    try {
         return JSON.parse(value_from_storage[item]);
-    }catch {
+    } catch {
         return default_value;
     }
 }
@@ -28,43 +30,79 @@ async function setItemInLocal(key, value) {
     return;
 }
 
-async function load_allowed_domains(){
-    const allowed_domains_list_element = document.getElementById("allowedDomainsListID");
-
-    let allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-
-    try {
-        for (let domain = 0; domain < allowed_domains_list.length; domain++) {
-            const domain_name = allowed_domains_list[domain];
-            allowed_domains_list_element.innerHTML += domain_name + "<br />";
-        }
-    
-    }
-    // Something went wrong, empty the ul to be safe
-    catch (error) {
-        allowed_domains_list_element.innerHTML = "";
+async function handleClick(e) {
+    if (e.target.dataset.action === "removeDomain" && e.target.dataset.domain) {
+        const allowedDomainsList = await getItemFromLocal(
+            "allowed_domain_list",
+            []
+        );
+        const newAllowedDomainsList = allowedDomainsList.filter(
+            (domain) => domain !== e.target.dataset.domain
+        );
+        await setItemInLocal("allowed_domain_list", newAllowedDomainsList);
+        load_allowed_domains();
     }
 }
 
-async function saveOptions(e) {
-    // https://stackoverflow.com/questions/10306690/what-is-a-regular-expression-which-will-match-a-valid-domain-name-without-a-subd
-    let valid_domain = new RegExp("^(((?!\-))(xn\-\-)?[a-z0-9\-_]{0,61}[a-z0-9]{1,1}\.)*(xn\-\-)?([a-z0-9\-]{1,61}|[a-z0-9\-]{1,30})\.[a-z]{2,}$", "i");
-    // Make sure the user enters a valid domain name
-    if (e.target[0].value.includes('.') && e.target[0].value.search(valid_domain) !== -1){
-
-        // Get the list of allowed domains
-        let allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-        
-        // Remove any leading "www."
-        e.target[0].value = e.target[0].value.replace(/^(www\.)/,"");
-        // If the domain doesn't exist in the list, add it
-        if (allowed_domains_list.indexOf(e.target[0].value) === -1) {
-            allowed_domains_list = allowed_domains_list.concat([e.target[0].value]);
-            await setItemInLocal('allowed_domain_list', allowed_domains_list);
-        }  
+async function load_allowed_domains() {
+    // Remove the current event listener to avoid multiple event listeners
+    if (
+        document.querySelector("button").addEventListener("click", handleClick)
+    ) {
+        document
+            .querySelector("button")
+            .removeEventListener("click", handleClick);
     }
-  
-  }
-  
+
+    document.querySelector("button").addEventListener("click", handleClick);
+    const allowedDomainsList = await getItemFromLocal(
+        "allowed_domain_list",
+        []
+    );
+
+    const domainDomElements = allowedDomainsList.map((domain) => {
+        const button = document.createElement("button");
+        button.innerHTML = "Remove";
+        button.dataset.domain = domain;
+        button.dataset.action = "removeDomain";
+
+        return `<li>${domain} ${button.outerHTML}</li>`;
+    });
+
+    const allowDomainsListDomElement = document.getElementById(
+        "allowedDomainsListID"
+    );
+    allowDomainsListDomElement.innerHTML = domainDomElements.join("");
+    allowDomainsListDomElement.addEventListener("click", handleClick);
+}
+
+async function saveOptions(e) {
+    const allowed_domains_list = await getItemFromLocal(
+        "allowed_domain_list",
+        []
+    );
+
+    // We don't actually care about the protocol as we only compare url.host
+    // But the URL object will fail to create if no protocol is provided
+    let url = e.target[0].value + "";
+    if (url.slice(0, 4) != "http") {
+        url = "https://" + url;
+    }
+    try {
+        const newUrl = new URL(url);
+        const newUrlHost = newUrl.host;
+        if (allowed_domains_list.indexOf(newUrlHost) !== -1) {
+            alert("This domain is already in the list.");
+            return;
+        }
+        allowed_domains_list.push(newUrlHost);
+        await setItemInLocal("allowed_domain_list", allowed_domains_list);
+    } catch (error) {
+        console.error(error);
+        alert("Please enter a valid domain.");
+        return;
+    }
+}
+
 load_allowed_domains();
 document.querySelector("form").addEventListener("submit", saveOptions);
