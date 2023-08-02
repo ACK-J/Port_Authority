@@ -88,10 +88,9 @@ async function cancel(requestDetails) {
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
     
     const check_allowed_url = new URL(requestDetails.originUrl)
-    // Check if the requesting domain is in the whitelist
-    if (allowed_domains_list.some((domain) => {
-        return check_allowed_url.host.includes(domain);
-    })){
+
+    const domainIsWhiteListed = allowed_domains_list.some((domain) => check_allowed_url.host.includes(domain));
+    if (domainIsWhiteListed){
         return { cancel: false };
     }
 
