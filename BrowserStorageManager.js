@@ -8,9 +8,7 @@ async function getItemFromLocal(item, default_value) {
     while (updating_storage) {
         await sleep(500);
     }
-    updating_storage = true;
     const value_from_storage = await browser.storage.local.get({ [item]: default_value });
-    updating_storage = false;
 
     try{
         return JSON.parse(value_from_storage[item]);
