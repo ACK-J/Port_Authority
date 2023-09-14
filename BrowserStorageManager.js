@@ -5,9 +5,6 @@ function sleep(ms) {
 }
 
 async function getItemFromLocal(item, default_value) {
-    while (updating_storage) {
-        await sleep(500);
-    }
     const value_from_storage = await browser.storage.local.get({ [item]: default_value });
 
     try{
@@ -19,7 +16,7 @@ async function getItemFromLocal(item, default_value) {
 
 async function setItemInLocal(key, value) {
     while (updating_storage) {
-        await sleep(500);
+        await sleep(1);
     }
     updating_storage = true;
     const stringifiedValue = JSON.stringify(value);
@@ -30,7 +27,7 @@ async function setItemInLocal(key, value) {
 
 async function clearLocalItems() {
     while (updating_storage) {
-        await sleep(500);
+        await sleep(1);
     }
     updating_storage = true;
     await browser.storage.local.clear();
