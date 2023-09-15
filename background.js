@@ -1,5 +1,33 @@
-let badges = {};
-var notificationsAllowed = true;
+async function startup(){
+	var badges;
+	var notificationsAllowed;
+
+	// Check if badges exist in local storage, otherwise set to empty object
+	const storedBadges = await getItemFromLocal("badges", {});
+	// If badges do not exist in local storage, set the default value and update the local storage
+	if (storedBadges === undefined || Object.keys(storedBadges).length === 0) {
+	    await setItemInLocal("badges", {}); // Update local storage with the default value
+	}
+
+	// Check if notificationsAllowed exists in local storage, otherwise set to true
+	notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
+	await setItemInLocal("notificationsAllowed", notificationsAllowed);
+
+	// Check if allowed_domain_list exists in local storage, otherwise set it to the default value (an empty array)
+	const storedAllowedDomainList = await getItemFromLocal("allowed_domain_list");
+	var allowed_domain_list = Array.isArray(storedAllowedDomainList) ? storedAllowedDomainList : [];
+	await setItemInLocal("allowed_domain_list", allowed_domain_list);
+	
+	// Get the blocking state
+	const state = await getItemFromLocal("state", true); 
+	if (state === true) {
+	    start();
+	} else {
+	    stop();
+	}
+} 
+
+
 
 function notifyPortScanning() {
     browser.notifications.create("port-scanning-notification", {
@@ -84,9 +112,9 @@ async function cancel(requestDetails) {
     // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
     let thm = new RegExp("online-metrix[.]net$", "i");
 
-    
+    const badges = await getItemFromLocal("badges", {});
+    const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-    
     const check_allowed_url = new URL(requestDetails.originUrl)
 
     const domainIsWhiteListed = allowed_domains_list.some((domain) => check_allowed_url.host.includes(domain));
@@ -143,9 +171,8 @@ async function cancel(requestDetails) {
 
 async function start() {  // Enables blocking
     try {
-        await browser.storage.local.clear();
-        localStorage.setItem("state", true);
-        setItemInLocal("allowed_domain_list", []);
+        const newStateValue = true; // Define the blocking state value
+        await setItemInLocal("state", newStateValue); // Use setItemInLocal to set the state value
         //Add event listener
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
@@ -158,19 +185,16 @@ async function start() {  // Enables blocking
 
 }
 
-function stop() {  // Disables blocking
+async function stop() {  // Disables blocking
     try {
-        localStorage.setItem("state", false);
+        const newStateValue = false; // Define the blocking state value
+        await setItemInLocal("state", newStateValue); // Use setItemInLocal to set the state value
         //Remove event listener
         browser.webRequest.onBeforeRequest.removeListener(cancel);
     } catch (e) {
         console.log("STOP() ", e);
     }
 
-}
-
-function setNotificationsAllowed(value) {  // toggles notifications
-    notificationsAllowed = value;
 }
 
 function isListening() { // returns if blocking is on
@@ -181,12 +205,13 @@ function isListening() { // returns if blocking is on
  * Increases the badged by one.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
-function increaseBadged(request) {
+async function increaseBadged(request) {
     // Error check
     if (request === null) return;
 
     const tabId = request.tabId;
     const url = request.url;
+    const badges = await getItemFromLocal("badges", {});
 
     if (tabId === -1) return;
 
@@ -209,6 +234,7 @@ function increaseBadged(request) {
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
 async function handleUpdated(tabId, changeInfo, tabInfo) {
+    const badges = await getItemFromLocal("badges", {});
     if (!badges[tabId] || !changeInfo.url) return;
 
     if (badges[tabId].lastURL !== changeInfo.url) {
@@ -230,7 +256,8 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
     }
 }
 
-function onMessage(message, sender, sendResponse) {
+async function onMessage(message, sender, sendResponse) {
+  const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
       sendResponse({
@@ -242,7 +269,7 @@ function onMessage(message, sender, sendResponse) {
       message.value ? start() : stop();
       break;
     case 'setNotificationsAllowed':
-      setNotificationsAllowed(message.value);
+      await setItemInLocal("notificationsAllowed", message.value);
       break;
     default:
       console.warn('Port Authority: unknown message: ', message);
@@ -251,7 +278,7 @@ function onMessage(message, sender, sendResponse) {
 }
 browser.runtime.onMessage.addListener(onMessage);
 
-start();
+startup();
 // Call by each tab is updated.
 browser.tabs.onUpdated.addListener(handleUpdated);
-browser.runtime.onStartup.addListener(async () => { await browser.storage.local.clear() })
+//browser.runtime.onStartup.addListener(async () => { await browser.storage.local.clear() })

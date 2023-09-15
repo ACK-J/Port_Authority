@@ -23,9 +23,9 @@
 
   "background": {
     "scripts": [
-      "background.js",
+      "BrowserStorageManager.js",
       "constants.js",
-      "BrowserStorageManager.js"
+      "background.js"      
     ]
   },
 
