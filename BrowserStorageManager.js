@@ -12,15 +12,25 @@ async function getItemFromLocal(item, default_value) {
     }
 }
 
+async function lockStorage(){
+    const stringifiedValue = JSON.stringify(true);
+    await browser.storage.local.set({ [updating_storage]: stringifiedValue });
+}
+
+async function unlockStorage(){
+    const stringifiedValue = JSON.stringify(false);
+    await browser.storage.local.set({ [updating_storage]: stringifiedValue });
+}
+
 async function setItemInLocal(key, value) {
     var updating_storage = await getItemFromLocal('updating_storage', false);
     while (updating_storage) {
         await sleep(5);
     }
-    await setItemInLocal('updating_storage', true);
+    await lockStorage();
     const stringifiedValue = JSON.stringify(value);
     await browser.storage.local.set({ [key]: stringifiedValue });
-    await setItemInLocal('updating_storage', false);
+    await unlockStorage();
     return;
 }
 
@@ -29,9 +39,9 @@ async function clearLocalItems() {
     while (updating_storage) {
         await sleep(5);
     }
-    await setItemInLocal('updating_storage', true);
+    await lockStorage();
     await browser.storage.local.clear();
-    await setItemInLocal('updating_storage', false);
+    await unlockStorage();
     return;
 }
 
