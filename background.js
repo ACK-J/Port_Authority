@@ -83,7 +83,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
  * @param {string} tabId Id the of the browser tab the port check was executed in
  * @param {URL} url URL object built from the url of the tab associated with the tabID
  */
-const addBlockedTrackingHost = async (url, tabIdString) => {
+async function addBlockedTrackingHost(url, tabIdString) {
     const tabId = parseInt(tabIdString);
     const host = url.host;
 
@@ -97,9 +97,7 @@ const addBlockedTrackingHost = async (url, tabIdString) => {
 
     blocked_hosts_tabs[tabId] = blocked_hosts;
     
-
     await setItemInLocal("blocked_hosts", blocked_hosts_tabs);
-    return;
 }
 
 async function cancel(requestDetails) {
@@ -123,18 +121,18 @@ async function cancel(requestDetails) {
     
     // Make sure we are not searching the CNAME of local addresses
     if (!is_requested_local) {
-        // Parse the URL
         let url = new URL(requestDetails.url);
         // Send a request to get the CNAME of the webrequest
         let resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
         // If the CNAME redirects to a online-metrix.net domain -> Block
-        if (resolving.canonicalName.search(thm) !== -1) {
+        if (thm.test(resolving.canonicalName)) {
             let tabId = requestDetails.tabId;
-            increaseBadged(requestDetails);
+            increaseBadge(requestDetails);
             await addBlockedTrackingHost(url, tabId);
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
                 notifyThreatMetrix();
                 badges[tabId].alerted += 1;
+                await setItemInLocal("badges", badges);
             }
             return { cancel: true };
         }
@@ -142,17 +140,18 @@ async function cancel(requestDetails) {
 
     // Check if the network request is going to a local address
     if (is_requested_local) {
-        // Check if the current website visited is a local address
-        if (requestDetails.originUrl.search(local_filter) !== 0) {
+        // If URL in the address bar is a local address dont block the request
+        if (!local_filter.test(requestDetails.originUrl)) {
             // Increase the badge counter
             let tabId = requestDetails.tabId;
-            increaseBadged(requestDetails);
+            increaseBadge(requestDetails);
 
             let url = new URL(requestDetails.url);
             await addBlockedPortToHost(url, tabId);
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
                 notifyPortScanning();
                 badges[tabId].alerted += 1;
+                await setItemInLocal("badges", badges);
             }
             // Cancel the request
             return { cancel: true };
@@ -199,7 +198,7 @@ function isListening() { // returns if blocking is on
  * Increases the badged by one.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
-async function increaseBadged(request) {
+async function increaseBadge(request) {
     // Error check
     if (request === null) return;
 
@@ -219,6 +218,7 @@ async function increaseBadged(request) {
         badges[tabId].counter += 1;
     }
     browser.browserAction.setBadgeText({ text: (badges[tabId]).counter.toString(), tabId: tabId });
+    await setItemInLocal("badges", badges);
 
 }
 
@@ -237,6 +237,7 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
             alerted: 0,
             lastURL: tabInfo.url
         };
+    await setItemInLocal("badges", badges);
         
 	// Clear out the blocked ports for the current tab
 	const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
@@ -278,4 +279,3 @@ browser.runtime.onMessage.addListener(onMessage);
 startup();
 // Call by each tab is updated.
 browser.tabs.onUpdated.addListener(handleUpdated);
-//browser.runtime.onStartup.addListener(async () => { await browser.storage.local.clear() })
