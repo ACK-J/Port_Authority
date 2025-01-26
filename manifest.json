@@ -25,7 +25,7 @@
     "scripts": [
       "BrowserStorageManager.js",
       "constants.js",
-      "background.js"      
+      "background.js"
     ]
   },
 
@@ -44,19 +44,6 @@
       "id": "{6c00218c-707a-4977-84cf-36df1cef310f}"
     }
   },
-
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "popup/PopupUI.js",
-        "popup/settings.js",
-        "popup/switch.js"
-      ]
-    }
-  ],
 
   "options_ui": {
     "page": "popup/settings.html"

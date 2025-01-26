@@ -2,7 +2,7 @@
 
 [![Firefox Rating](https://img.shields.io/amo/stars/css-exfil-protection.svg?label=Rating&style=for-the-badge)](https://addons.mozilla.org/en-US/firefox/addon/port-authority)
 ![Mozilla Add-on](https://img.shields.io/amo/v/port-authority?label=Latest%20Version&style=for-the-badge)
-
+s
 # <sub><img src="https://user-images.githubusercontent.com/60232273/124614032-d99b3480-de41-11eb-96b9-8e830240a698.png" width="64px" height="64px"></sub> Port Authority
 
 This addon blocks websites from using javascript to port scan your computer/internal-network and also dynamically blocks all LexisNexis endpoints from running their invasive data collection scripts.
@@ -25,7 +25,7 @@ If you are feeling generous or really like my work, consider donating
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
 
 ## Regex Explanation
-- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/17
+- Explanation of the regex used to determine local addresses: https://regex101.com/r/LSL180/1
 - Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
 ## Test All Forms of Port Scanning 

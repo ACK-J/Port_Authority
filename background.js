@@ -1,5 +1,4 @@
 async function startup(){
-	var badges;
 	var notificationsAllowed;
 
 	// Check if badges exist in local storage, otherwise set to empty object
@@ -25,16 +24,14 @@ async function startup(){
 	} else {
 	    stop();
 	}
-} 
-
-
+}
 
 function notifyPortScanning() {
     browser.notifications.create("port-scanning-notification", {
         "type": "basic",
         "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
         "title": "This site attempted to port scan you!",
-        "message": "Port Authority has blocked this site from bypassing security measures and port scanning your private network."
+        "message": "Port Authority has blocked this site from port scanning your private network."
     });
 }
 
@@ -69,16 +66,15 @@ const addBlockedPortToHost = async (url, tabIdString) => {
         if (hosts_ports.indexOf(port) === -1 && port !== 'undefined') {
             const hosts_ports = tab_hosts[host].concat([port]);
             tab_hosts[host] = hosts_ports;
+            blocked_ports[tabId] = tab_hosts;
+            await setItemInLocal("blocked_ports", blocked_ports);
         }
 
     } else {
         tab_hosts[host] = [port];
+        blocked_ports[tabId] = tab_hosts;
+        await setItemInLocal("blocked_ports", blocked_ports);
     }
-
-    blocked_ports[tabId] = tab_hosts;
-
-    await setItemInLocal("blocked_ports", blocked_ports);
-    return;
 }
 
 /**
@@ -107,8 +103,8 @@ const addBlockedTrackingHost = async (url, tabIdString) => {
 }
 
 async function cancel(requestDetails) {
-    // This regex is explained here https://regex101.com/r/DOPCdB/17/ below I needed to change \b -> \\b
-    let local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(?:\/([789]|1?[0-9]{2}))?\\b\]?", "i");
+    // This regex is explained here https://regex101.com/r/LSL180/1 below I needed to change \b -> \\b
+    let local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/0.0.0.0|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(?:\/([789]|1?[0-9]{2}))?\\b", "i");
     // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
     let thm = new RegExp("online-metrix[.]net$", "i");
 
@@ -123,10 +119,10 @@ async function cancel(requestDetails) {
     }
 
     // This reduces having to check this conditional multiple times
-    let is_requested_local = requestDetails.url.search(local_filter);
+    let is_requested_local = local_filter.test(requestDetails.url);
     
     // Make sure we are not searching the CNAME of local addresses
-    if (is_requested_local !== 0) {
+    if (!is_requested_local) {
         // Parse the URL
         let url = new URL(requestDetails.url);
         // Send a request to get the CNAME of the webrequest
@@ -145,9 +141,7 @@ async function cancel(requestDetails) {
     }
 
     // Check if the network request is going to a local address
-    // search should return a 0 for the 0th index of the string
-    // if a match is further down the URL, it is probably a FP
-    if (is_requested_local === 0) {
+    if (is_requested_local) {
         // Check if the current website visited is a local address
         if (requestDetails.originUrl.search(local_filter) !== 0) {
             // Increase the badge counter
@@ -260,13 +254,16 @@ async function onMessage(message, sender, sendResponse) {
   const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
-      sendResponse({
-        isListening: isListening(),
+      const state = await getItemFromLocal("state", true);
+      return {
+        isListening: state,
         notificationsAllowed,
-      });
-      break;
+      };
     case 'toggleEnabled':
-      message.value ? start() : stop();
+      message.value ? await start() : await stop();
+      break;
+    case 'setItemInLocal':
+      await setItemInLocal(message.key, message.value);
       break;
     case 'setNotificationsAllowed':
       await setItemInLocal("notificationsAllowed", message.value);

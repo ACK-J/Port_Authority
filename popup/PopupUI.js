@@ -1,24 +1,13 @@
-// content-script.js
-"use strict";
 const SECTION_HEADER_ELEMENT = "h5";
 
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-let updating_storage = false;
-async function getItemFromLocal(item, default_value) {
-    while (updating_storage) {
-        await sleep(500);
-    }
-    updating_storage = true;
-    const value_from_storage = await browser.storage.local.get({
-        [item]: default_value,
-    });
-    updating_storage = false;
+let storageMutex = Promise.resolve();
+
+async function getItemFromLocal(item, defaultValue) {
+    const result = await browser.storage.local.get(item);
     try {
-        return JSON.parse(value_from_storage[item]);
+        return item in result ? JSON.parse(result[item]) : defaultValue;
     } catch {
-        return default_value;
+        return defaultValue;
     }
 }
 
@@ -206,7 +195,7 @@ async function updateBlockedHostsDisplay() {
     hosts_ul.classList.add("list-unstyled");
 
     try {
-        const blocked_hosts_tabs = await await getItemFromLocal(
+        const blocked_hosts_tabs = await getItemFromLocal(
             "blocked_hosts",
             {}
         );
