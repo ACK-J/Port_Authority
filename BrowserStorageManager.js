@@ -2,9 +2,8 @@ let storageMutex = Promise.resolve();
 
 async function getItemFromLocal(item, defaultValue) {
   return storageMutex = storageMutex.then(async () => {
-    const release = () => {};
+    const result = await browser.storage.local.get(item);
     try {
-      const result = await browser.storage.local.get(item);
       return item in result ? JSON.parse(result[item]) : defaultValue;
     } catch {
       return defaultValue;

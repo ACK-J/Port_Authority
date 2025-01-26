@@ -63,7 +63,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     const hosts_ports = tab_hosts[host];
     if (Array.isArray(hosts_ports)) {
         // Add the port to the array of blocked ports for this host IFF the port doesn't exist
-        if (hosts_ports.indexOf(port) === -1 && port !== 'undefined') {
+        if (hosts_ports.indexOf(port) === -1) {
             const hosts_ports = tab_hosts[host].concat([port]);
             tab_hosts[host] = hosts_ports;
             blocked_ports[tabId] = tab_hosts;
@@ -248,7 +248,7 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
     }
 }
 
-async function onMessage(message, sender, sendResponse) {
+async function onMessage(message) {
   const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
@@ -266,6 +266,8 @@ async function onMessage(message, sender, sendResponse) {
     case 'setNotificationsAllowed':
       await setItemInLocal("notificationsAllowed", message.value);
       break;
+    case 'getItemInLocal':
+      return await getItemFromLocal(message.key, message.defaultValue);
     default:
       console.warn('Port Authority: unknown message: ', message);
       break;
