@@ -20,5 +20,7 @@ async function setItemInLocal(key, value) {
 }
 
 async function clearLocalItems() {
-  return browser.storage.local.clear();
+  return storageMutex = storageMutex.then(async () => {
+    await browser.storage.local.clear();
+  });
 }

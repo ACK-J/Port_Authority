@@ -248,7 +248,14 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
     }
 }
 
-async function onMessage(message) {
+async function onMessage(message, sender) {
+  // Add origin check for security
+  const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
+  if (new URL(sender.url).origin !== extensionOrigin) {
+    console.warn('Message from unexpected origin:', sender.url);
+    return;
+  }
+
   const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
