@@ -1,24 +1,25 @@
 let storageMutex = Promise.resolve();
 
 async function getItemFromLocal(item, defaultValue) {
-    const result = await browser.storage.local.get(item);
+  return storageMutex = storageMutex.then(async () => {
+    const release = () => {};
     try {
-        return item in result ? JSON.parse(result[item]) : defaultValue;
+      const result = await browser.storage.local.get(item);
+      return item in result ? JSON.parse(result[item]) : defaultValue;
     } catch {
-        return defaultValue;
+      return defaultValue;
     }
+  });
 }
 
 async function setItemInLocal(key, value) {
-    // Queue storage operations using a promise chain
-    storageMutex = storageMutex.then(async () => {
-        await browser.storage.local.set({ 
-            [key]: JSON.stringify(value) 
-        });
+  return storageMutex = storageMutex.then(async () => {
+    await browser.storage.local.set({
+      [key]: JSON.stringify(value)
     });
-    return storageMutex;
+  });
 }
 
 async function clearLocalItems() {
-    return browser.storage.local.clear();
+  return browser.storage.local.clear();
 }

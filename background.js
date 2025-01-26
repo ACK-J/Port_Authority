@@ -164,8 +164,7 @@ async function cancel(requestDetails) {
 
 async function start() {  // Enables blocking
     try {
-        const newStateValue = true; // Define the blocking state value
-        await setItemInLocal("state", newStateValue); // Use setItemInLocal to set the state value
+        await setItemInLocal("state", true); // Define the blocking state value
         //Add event listener
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
@@ -180,8 +179,7 @@ async function start() {  // Enables blocking
 
 async function stop() {  // Disables blocking
     try {
-        const newStateValue = false; // Define the blocking state value
-        await setItemInLocal("state", newStateValue); // Use setItemInLocal to set the state value
+        await setItemInLocal("state", false); // Define the blocking state value
         //Remove event listener
         browser.webRequest.onBeforeRequest.removeListener(cancel);
     } catch (e) {
@@ -217,9 +215,8 @@ async function increaseBadge(request) {
     } else {
         badges[tabId].counter += 1;
     }
-    browser.browserAction.setBadgeText({ text: (badges[tabId]).counter.toString(), tabId: tabId });
+    browser.browserAction.setBadgeText({ text: (badges[tabId]).counter.toString(), tabId: tabId }).catch();
     await setItemInLocal("badges", badges);
-
 }
 
 /**

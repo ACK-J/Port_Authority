@@ -3,12 +3,15 @@ const SECTION_HEADER_ELEMENT = "h5";
 let storageMutex = Promise.resolve();
 
 async function getItemFromLocal(item, defaultValue) {
-    const result = await browser.storage.local.get(item);
-    try {
-        return item in result ? JSON.parse(result[item]) : defaultValue;
-    } catch {
-        return defaultValue;
-    }
+    // Wait for previous storage operations to complete
+    return storageMutex = storageMutex.then(async () => {
+        const result = await browser.storage.local.get(item);
+        try {
+            return item in result ? JSON.parse(result[item]) : defaultValue;
+        } catch {
+            return defaultValue;
+        }
+    });
 }
 
 /**
