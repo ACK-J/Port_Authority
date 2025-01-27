@@ -47,7 +47,8 @@
 
   "options_ui": {
     "page": "popup/settings.html"
-  }
+  },
 
+  "content_security_policy": "default-src 'self'; style-src 'self'"
 
 }

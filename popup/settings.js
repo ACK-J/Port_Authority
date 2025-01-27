@@ -66,13 +66,17 @@ async function load_allowed_domains() {
         button.dataset.domain = domain;
         button.dataset.action = "removeDomain";
 
-        return `<li>${domain} ${button.outerHTML}</li>`;
+        const li = document.createElement("li");
+        li.append(document.createTextNode(domain + " "));
+        li.appendChild(button);
+        return li;
     });
 
     const allowDomainsListDomElement = document.getElementById(
         "allowedDomainsListID"
     );
-    allowDomainsListDomElement.innerHTML = domainDomElements.join("");
+    allowDomainsListDomElement.innerHTML = "";
+    domainDomElements.forEach(li => allowDomainsListDomElement.appendChild(li));
     allowDomainsListDomElement.addEventListener("click", handleClick);
 }
 

@@ -1,22 +1,7 @@
 async function startup(){
-	var notificationsAllowed;
+    // No need to check and initialize notification, state, and allow list values as they will 
+    // fall back to the default values until explicitly set
 
-	// Check if badges exist in local storage, otherwise set to empty object
-	const storedBadges = await getItemFromLocal("badges", {});
-	// If badges do not exist in local storage, set the default value and update the local storage
-	if (storedBadges === undefined || Object.keys(storedBadges).length === 0) {
-	    await setItemInLocal("badges", {}); // Update local storage with the default value
-	}
-
-	// Check if notificationsAllowed exists in local storage, otherwise set to true
-	notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
-	await setItemInLocal("notificationsAllowed", notificationsAllowed);
-
-	// Check if allowed_domain_list exists in local storage, otherwise set it to the default value (an empty array)
-	const storedAllowedDomainList = await getItemFromLocal("allowed_domain_list");
-	var allowed_domain_list = Array.isArray(storedAllowedDomainList) ? storedAllowedDomainList : [];
-	await setItemInLocal("allowed_domain_list", allowed_domain_list);
-	
 	// Get the blocking state
 	const state = await getItemFromLocal("state", true); 
 	if (state === true) {
@@ -26,22 +11,40 @@ async function startup(){
 	}
 }
 
-function notifyPortScanning() {
-    browser.notifications.create("port-scanning-notification", {
-        "type": "basic",
-        "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-        "title": "This site attempted to port scan you!",
-        "message": "Port Authority has blocked this site from port scanning your private network."
-    });
+function notifyPortScanning(domain_name) {
+    if (domain_name){
+        browser.notifications.create("port-scanning-notification", {
+            "type": "basic",
+            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
+            "title": "Port Scan Blocked",
+            "message": "Port Authority blocked " + domain_name + " from port scanning your private network."
+        });
+    } else {
+        browser.notifications.create("port-scanning-notification", {
+            "type": "basic",
+            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
+            "title": "Port Scan Blocked",
+            "message": "Port Authority blocked this site from port scanning your private network."
+        });
+    }
 }
 
-function notifyThreatMetrix() {
-    browser.notifications.create("threatmetrix-notification", {
-        "type": "basic",
-        "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-        "title": "This site attempted to track you!",
-        "message": "Port Authority dynamically blocked a hidden LexisNexis endpoint from running an invasive data collection script."
-    });
+function notifyThreatMetrix(domain_name) {
+    if (domain_name) {
+        browser.notifications.create("threatmetrix-notification", {
+            "type": "basic",
+            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
+            "title": "Tracking Script Blocked",
+            "message": "Port Authority blocked a hidden LexisNexis endpoint on " + domain_name + " from running an invasive data collection script."
+        });
+    } else {
+        browser.notifications.create("threatmetrix-notification", {
+            "type": "basic",
+            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
+            "title": "Tracking Script Blocked",
+            "message": "Port Authority blocked a hidden LexisNexis endpoint from running an invasive data collection script."
+        });
+    }
 }
 
 /**
@@ -64,7 +67,7 @@ const addBlockedPortToHost = async (url, tabIdString) => {
     if (Array.isArray(hosts_ports)) {
         // Add the port to the array of blocked ports for this host IFF the port doesn't exist
         if (hosts_ports.indexOf(port) === -1) {
-            const hosts_ports = tab_hosts[host].concat([port]);
+            hosts_ports = tab_hosts[host].concat([port]);
             tab_hosts[host] = hosts_ports;
             blocked_ports[tabId] = tab_hosts;
             await setItemInLocal("blocked_ports", blocked_ports);
@@ -109,9 +112,17 @@ async function cancel(requestDetails) {
     const badges = await getItemFromLocal("badges", {});
     const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-    const check_allowed_url = new URL(requestDetails.originUrl)
+    let check_allowed_url;
+    try {
+        check_allowed_url = new URL(requestDetails.originUrl);
+    } catch {
+        return { cancel: false }; // invalid origin
+    }
 
-    const domainIsWhiteListed = allowed_domains_list.some((domain) => check_allowed_url.host.includes(domain));
+    // Perform an exact match against the whitelisted domains (dont assume subdomains are allowed)
+    const domainIsWhiteListed = allowed_domains_list.some(
+        (domain) => check_allowed_url.host === domain
+    );
     if (domainIsWhiteListed){
         return { cancel: false };
     }
@@ -130,7 +141,7 @@ async function cancel(requestDetails) {
             increaseBadge(requestDetails);
             await addBlockedTrackingHost(url, tabId);
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
-                notifyThreatMetrix();
+                notifyThreatMetrix(new URL(requestDetails.originUrl).host);
                 badges[tabId].alerted += 1;
                 await setItemInLocal("badges", badges);
             }
@@ -149,7 +160,7 @@ async function cancel(requestDetails) {
             let url = new URL(requestDetails.url);
             await addBlockedPortToHost(url, tabId);
             if (badges[tabId].alerted == 0 && notificationsAllowed) {
-                notifyPortScanning();
+                notifyPortScanning(new URL(requestDetails.originUrl).host);
                 badges[tabId].alerted += 1;
                 await setItemInLocal("badges", badges);
             }
@@ -215,7 +226,12 @@ async function increaseBadge(request) {
     } else {
         badges[tabId].counter += 1;
     }
-    browser.browserAction.setBadgeText({ text: (badges[tabId]).counter.toString(), tabId: tabId }).catch();
+    // Update badge text
+    browser.browserAction.setBadgeText({ 
+        text: (badges[tabId]).counter.toString(), 
+        tabId: tabId 
+    }).catch();
+
     await setItemInLocal("badges", badges);
 }
 
@@ -238,12 +254,12 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
         
 	// Clear out the blocked ports for the current tab
 	const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
-	blocked_ports_object[tabId] = {};
+	delete blocked_ports_object[tabId];
 	await setItemInLocal("blocked_ports", blocked_ports_object);
         
 	// Clear out the hosts for the current tab
 	const blocked_hosts_object = await getItemFromLocal("blocked_hosts", {});
-	blocked_hosts_object[tabId] = [];
+	delete blocked_hosts_object[tabId];
 	await setItemInLocal("blocked_hosts", blocked_hosts_object);
     }
 }
