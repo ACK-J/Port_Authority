@@ -170,7 +170,7 @@ padding-bottom: 20px; width: 500px; margin: auto; text-align: center;padding-top
         for(var ip in ips){
             var port = ips[ip];
             port = parseInt(port);
-            if (isNaN(port) || port < 0 || port > 65535) {
+            if (isNaN(port) || port <= 0 || port > 65535) {
                 alert("Bad port number");
             }
             var scanner = new PortScanner(ip, port);

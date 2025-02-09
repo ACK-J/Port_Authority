@@ -1,6 +1,6 @@
+// content-script.js
+"use strict";
 const SECTION_HEADER_ELEMENT = "h5";
-
-let storageMutex = Promise.resolve();
 
 /**
  * Applies an object of variable_name: variable_value as attributes to a provided DOM element.
@@ -109,11 +109,7 @@ async function updateBlockedPortsDisplay() {
     all_ports_wrapper.appendChild(all_ports_header);
 
     // Grab the blocked ports from the extensions local storage.
-    const blocked_ports_tabs = await browser.runtime.sendMessage({
-        type: 'getItemInLocal',
-        key: "blocked_ports",
-        defaultValue: {}
-    });
+    const blocked_ports_tabs = await getItemFromLocal("blocked_ports", {});
 
     if (Object.entries(blocked_ports_tabs).length === 0) {
         // Nothing to render
@@ -190,11 +186,10 @@ async function updateBlockedHostsDisplay() {
     hosts_ul.classList.add("list-unstyled");
 
     try {
-        const blocked_hosts_tabs = await browser.runtime.sendMessage({
-            type: 'getItemInLocal',
-            key: "blocked_hosts",
-            defaultValue: {}
-        });
+        const blocked_hosts_tabs = await await getItemFromLocal(
+            "blocked_hosts",
+            {}
+        );
         const blocked_hosts = blocked_hosts_tabs[tabId] || [];
 
         // Build a list of host names as li elements
