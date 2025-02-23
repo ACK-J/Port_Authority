@@ -54,6 +54,6 @@
   ],
 
   "options_ui": {
-    "page": "popup/settings.html"
+    "page": "settings/settings.html"
   }
 }
