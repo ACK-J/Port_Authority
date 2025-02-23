@@ -22,11 +22,7 @@
   ],
 
   "background": {
-    "scripts": [
-      "background.js",
-      "constants.js",
-      "BrowserStorageManager.js"
-    ]
+    "page": "background.html"
   },
 
   "browser_action": {
