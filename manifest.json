@@ -48,7 +48,6 @@
       ],
       "js": [
         "popup/PopupUI.js",
-        "popup/settings.js",
         "popup/switch.js"
       ]
     }
@@ -57,6 +56,4 @@
   "options_ui": {
     "page": "popup/settings.html"
   }
-
-
 }

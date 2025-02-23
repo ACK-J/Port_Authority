@@ -4,9 +4,9 @@ const storage_lock_key = "port_authority_storage_lock";
 export async function getItemFromLocal(item, default_value) {
     const value_from_storage = await browser.storage.local.get({ [item]: default_value });
 
-    try{
+    try {
         return JSON.parse(value_from_storage[item]);
-    }catch {
+    } catch {
         return default_value;
     }
 }
