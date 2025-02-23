@@ -1,15 +1,14 @@
-import { getItemFromLocal, setItemInLocal } from "../BrowserStorageManager.js";
+import { getItemFromLocal, setItemInLocal, modifyItemInLocal } from "../BrowserStorageManager.js";
 
 async function handleClick(e) {
     if (e.target.dataset.action === "removeDomain" && e.target.dataset.domain) {
-        const allowedDomainsList = await getItemFromLocal(
-            "allowed_domain_list",
-            []
-        );
-        const newAllowedDomainsList = allowedDomainsList.filter(
-            (domain) => domain !== e.target.dataset.domain
-        );
-        await setItemInLocal("allowed_domain_list", newAllowedDomainsList);
+        const deleting_domain = e.target.dataset.domain;
+
+        await modifyItemInLocal("allowed_domain_list", [],
+            (list) => list.filter(
+                (domain) => domain !== deleting_domain
+            ));
+
         load_allowed_domains();
     }
 }
