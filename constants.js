@@ -16,7 +16,7 @@ const PROTOCOLS_AND_PORTS = {
     "ldaps:": 636
 }
 
-const getPortForProtocol = (protocol) => {
+export const getPortForProtocol = (protocol) => {
     const lowercase_protocol_string = `${protocol}`.toLowerCase();
     return PROTOCOLS_AND_PORTS[lowercase_protocol_string];
 }
