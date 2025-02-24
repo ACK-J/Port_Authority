@@ -51,7 +51,7 @@ async function UNLOCKED_getItemFromLocal(key, default_value) {
 /**
  * @param {string} key - Used to reference stored value from `browser.storage.local`
  * @param {any} [default_value] - Will be returned if there is no value in storage under `key`
- * @returns {any} Type is probably the same as `default_value` due to convention yet isn't checked or guaranteed at all
+ * @returns {Promise<any>} Type is probably the same as `default_value` due to convention yet isn't checked or guaranteed at all
  * 
  * @remarks
  * Don't need `exclusive` lock for reading, just writing and modifying.
@@ -63,7 +63,7 @@ async function UNLOCKED_getItemFromLocal(key, default_value) {
 export async function getItemFromLocal(key, default_value) {
     console.debug("Reading storage: " + key);
 
-    return await navigator.locks.request(STORAGE_LOCK_KEY,
+    return navigator.locks.request(STORAGE_LOCK_KEY,
         { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
         async (lock) =>
             await UNLOCKED_getItemFromLocal(key, default_value)
@@ -73,7 +73,7 @@ export async function getItemFromLocal(key, default_value) {
 /**
  * @param {string} key Used to reference stored value from `browser.storage.local`
  * @param {any} value Stored blindly, overwrites any previous value
- * @returns {void}
+ * @returns {Promise} Resolves once operation is finished
  * 
  * @see `modifyItemInLocal` If you need to read a value, mutate it, then save it (with transaction safety)
  * @see `clearLocalItems` To clear and set all stored values at once
@@ -85,7 +85,7 @@ export async function setItemInLocal(key, value) {
     console.debug("Setting storage: ", {[key]: value})
 
     // Acquire lock for write access before updating
-    await navigator.locks.request(STORAGE_LOCK_KEY, async (lock) =>
+    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) =>
         await browser.storage.local.set({ [key]: stringifiedValue })
     );
 }
@@ -95,7 +95,7 @@ export async function setItemInLocal(key, value) {
  * @param {string} key Used to reference stored value from `browser.storage.local`
  * @param {T} default_value Will be passed as the original value to `mutate` if nothing is found in storage
  * @param {(original_value: T)=>T} mutate Pass a function to be applied to the stored value
- * @returns {void}
+ * @returns {Promise} Resolves once operation is finished
  * 
  * @example
  * // Starting storage state: `{key_example: 1}`
@@ -118,7 +118,7 @@ export async function setItemInLocal(key, value) {
  *      3. (write A++ based on old value, A=2, != 6 to reflect latest data) 
  */
 export async function modifyItemInLocal(key, default_value, mutate) {
-    await navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
+    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
         // Fetch the value to be modified, storing it in `initial_value`
         const initial_value = await UNLOCKED_getItemFromLocal(key, default_value);
 
@@ -140,7 +140,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
 /**
  * @param {Map<string, any>} [default_structure] Used to set initial storage values.
  * The object will be `JSON.stringify`'d transparently, so complex objects can be used.
- * @returns {void}
+ * @returns {Promise} Resolves once operation is finished
  * 
  * @example
  * clearLocalItems({
@@ -170,7 +170,7 @@ export async function clearLocalItems(default_structure = {}) {
     })
 
     // Acquire lock for write access before clearing
-    await navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
+    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
         await browser.storage.local.clear();
         await browser.storage.local.set(
             default_structure_stringified

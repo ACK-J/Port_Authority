@@ -262,4 +262,4 @@ browser.runtime.onInstalled.addListener(() => {
         "blocking_enabled": true,
         "notifications_enabled": true
     });
- });
+});
