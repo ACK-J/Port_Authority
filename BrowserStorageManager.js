@@ -37,7 +37,7 @@ export async function getItemFromLocal(key, default_value) {
     return await navigator.locks.request(STORAGE_LOCK_KEY,
         { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
         async (lock) =>
-            UNLOCKED_getItemFromLocal(key, default_value)
+            await UNLOCKED_getItemFromLocal(key, default_value)
     );
 }
 
