@@ -131,48 +131,6 @@ function isListening() { // returns if blocking is on
 }
 
 /**
- * Increases the badged by one.
- * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
- */
-async function increaseBadge(request, isThreatMetrix) {
-    // Error check
-    if (request === null) return;
-
-    const tabId = request.tabId;
-    const url = request.url;
-    const badges = await getItemFromLocal("badges", {});
-
-    if (tabId === -1) return;
-
-    if (badges[tabId] == null) {
-        badges[tabId] = {
-            counter: 1,
-            alerted: 0,
-            lastURL: url
-        };
-    } else {
-        badges[tabId].counter += 1;
-    }
-    // Update badge text
-    browser.browserAction.setBadgeText({ 
-        text: (badges[tabId]).counter.toString(), 
-        tabId: tabId 
-    }).catch();
-
-    // Update notification alerted status
-    if (badges[tabId].alerted === 0 && await getItemFromLocal("notificationsAllowed", true)) {
-        badges[tabId].alerted += 1;
-        if (isThreatMetrix){
-            notifyThreatMetrix(new URL(request.originUrl).host);
-        } else {
-            notifyPortScanning(new URL(request.originUrl).host);
-        }
-    }
-
-    await setItemInLocal("badges", badges);
-}
-
-/**
  * Call by each tab is updated.
  * And if url has changed.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js

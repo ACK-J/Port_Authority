@@ -88,10 +88,48 @@ async function addBlockedTrackingHost(url, tabIdString) {
   })
 }
 
-
-
-async function clearLocalItems() {
+/**
+ * Increases the badged by one.
+ * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ */
+async function increaseBadge(request, isThreatMetrix) {
   return storageMutex = storageMutex.then(async () => {
-    await browser.storage.local.clear();
+    // Error check
+    if (request === null) return;
+
+    const tabId = request.tabId;
+    const url = request.url;
+    const badges = await _getItemFromLocalGuts("badges", {});
+
+    if (tabId === -1) return;
+
+    if (badges[tabId] == null) {
+      badges[tabId] = {
+        counter: 1,
+        alerted: 0,
+        lastURL: url
+      };
+    } else {
+      badges[tabId].counter += 1;
+    }
+    // Update badge text
+    browser.browserAction.setBadgeText({
+      text: (badges[tabId]).counter.toString(),
+      tabId: tabId
+    }).catch();
+
+    // Update notification alerted status
+    if (badges[tabId].alerted === 0 && await _getItemFromLocalGuts("notificationsAllowed", true)) {
+      badges[tabId].alerted += 1;
+      if (isThreatMetrix) {
+        notifyThreatMetrix(new URL(request.originUrl).host);
+      } else {
+        notifyPortScanning(new URL(request.originUrl).host);
+      }
+    }
+
+    await _setItemInLocalGuts("badges", badges);
   });
 }
+
+
