@@ -1,17 +1,31 @@
 // Key required to access the same lock that's used to control write access to localStorage
-const storage_lock_key = "port_authority_storage_lock";
+const STORAGE_LOCK_KEY = "port_authority_storage_lock";
 
-// Don't need lock for reading, just writing and modifying
-export async function getItemFromLocal(key, default_value) {
-    const value_from_storage = await browser.storage.local.get({ [key]: default_value });
-    console.debug("Reading storage: " + key);
-
+// Not for public use, has no transaction guarantees
+async function UNLOCKED_getItemFromLocal(key, default_value) {
+    const storage_value = await browser.storage.local.get({ [key]: default_value });
     try {
-        return JSON.parse(value_from_storage[key]);
-    } catch {
-        console.error("Error parsing storage value ["+key+"]: ", value_from_storage, "Using default value: ", default_value);
+        return JSON.parse(storage_value[key]);
+    } catch (error) {
+        console.error("Error parsing storage value [" + key + "]: ", {
+            error,
+            default_value,
+            storage_value
+        });
         return default_value;
     }
+}
+
+// Don't need *exclusive* lock for reading, just writing and modifying
+// Still need *shared* lock to prevent reading in the middle of a modify action
+export async function getItemFromLocal(key, default_value) {
+    console.debug("Reading storage: " + key);
+
+    return await navigator.locks.request(STORAGE_LOCK_KEY,
+        { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
+        async (lock) =>
+            UNLOCKED_getItemFromLocal(key, default_value)
+    );
 }
 
 export async function setItemInLocal(key, value) {
@@ -21,26 +35,23 @@ export async function setItemInLocal(key, value) {
     console.debug("Setting storage: ", {[key]: value})
 
     // Acquire lock for write access before updating
-    await navigator.locks.request(storage_lock_key, async (lock) => {
+    await navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
         await browser.storage.local.set({ [key]: stringifiedValue });
     });
 }
 
 // Modifying a value requires locking write access for the entire time from the read until the item is written again
-// Need to do this to avoid race condition: (trying to execute A++: read A=1 here) [A=5 written from other location] (write A++ based on old value, A=2, != 6) 
+// Need to do this to avoid race condition:
+//   (trying to execute A++: read A=1 here)
+//   [A=5 written from other location]
+//   (write A++ based on old value, A=2, != 6) 
 export async function modifyItemInLocal(key, default_value, modification) {
-    await navigator.locks.request(storage_lock_key, async (lock) => {
-        // Fetch the value to be modified, storing it in `initial_value` after parsing as JSON
-        const value_from_storage = await browser.storage.local.get({ [key]: default_value });
-        let initial_value = default_value;
-        try {
-            initial_value = JSON.parse(value_from_storage[key]);
-        } catch {
-            console.error("Error parsing storage value [" + key + "]: ", value_from_storage, "Using default value: ", default_value);
-        }
+    await navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
+        // Fetch the value to be modified, storing it in `initial_value`
+        const initial_value = await UNLOCKED_getItemFromLocal(key, default_value);
 
         // Apply the modification function (adding a list item, removing an element based on a filter, etc)
-        const new_value = modification(initial_value);
+        const new_value = await modification(initial_value);
 
         // Re-stringify and save the changed value
         await browser.storage.local.set({
@@ -71,7 +82,7 @@ export async function clearLocalItems(default_structure = {}) {
     })
 
     // Acquire lock for write access before clearing
-    await navigator.locks.request(storage_lock_key, async (lock) => {
+    await navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
         await browser.storage.local.clear();
         await browser.storage.local.set(
             default_structure_stringified

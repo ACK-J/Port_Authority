@@ -206,7 +206,7 @@ async function updateBlockedHostsDisplay() {
     hosts_ul.classList.add("list-unstyled");
 
     try {
-        const blocked_hosts_tabs = await await getItemFromLocal(
+        const blocked_hosts_tabs = await getItemFromLocal(
             "blocked_hosts",
             {}
         );
