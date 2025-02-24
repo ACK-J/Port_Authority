@@ -1,4 +1,4 @@
-import { clearLocalItems, getItemFromLocal, modifyItemInLocal } from "./BrowserStorageManager.js";
+import { clearLocalItems, getItemFromLocal, setItemInLocal, modifyItemInLocal } from "./BrowserStorageManager.js";
 import { getPortForProtocol } from "./constants.js";
 
 let badges = {};
@@ -255,7 +255,8 @@ start();
 browser.tabs.onUpdated.addListener(handleUpdated);
 
 // Is this good behavior? Wipes storage instead of allowing for persisting settings
-browser.runtime.onStartup.addListener(() => {
+browser.runtime.onInstalled.addListener(() => {
+    console.log("Setting up initial values post installation")
     clearLocalItems({
         "allowed_domain_list": [],
         "blocking_enabled": true,
