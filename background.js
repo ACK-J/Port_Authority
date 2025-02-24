@@ -2,7 +2,7 @@ import { clearLocalItems, getItemFromLocal, modifyItemInLocal } from "./BrowserS
 import { getPortForProtocol } from "./constants.js";
 
 let badges = {};
-var notificationsAllowed = true;
+let notificationsAllowed = true;
 
 function notifyPortScanning() {
     browser.notifications.create("port-scanning-notification", {
@@ -142,7 +142,6 @@ async function cancel(requestDetails) {
     return { cancel: false };
 } // end cancel()
 
-
 async function start() {  // Enables blocking
     try {
         //Add event listener
@@ -156,7 +155,6 @@ async function start() {  // Enables blocking
     } catch (e) {
         console.log("START() ", e);
     }
-
 }
 
 async function stop() {  // Disables blocking
@@ -168,10 +166,6 @@ async function stop() {  // Disables blocking
     } catch (e) {
         console.log("STOP() ", e);
     }
-}
-
-function setNotificationsAllowed(value) {  // toggles notifications
-    notificationsAllowed = value;
 }
 
 function isListening() { // returns if blocking is on
@@ -247,7 +241,7 @@ function onMessage(message, sender, sendResponse) {
       message.value ? start() : stop();
       break;
     case 'setNotificationsAllowed':
-      setNotificationsAllowed(message.value);
+      notificationsAllowed = message.value;
       break;
     default:
       console.warn('Port Authority: unknown message: ', message);

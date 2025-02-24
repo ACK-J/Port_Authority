@@ -47,8 +47,7 @@
         "<all_urls>"
       ],
       "js": [
-        "popup/PopupUI.js",
-        "popup/switch.js"
+        "popup/PopupUI.js"
       ]
     }
   ],
