@@ -2,22 +2,30 @@
 "use strict";
 const SECTION_HEADER_ELEMENT = "h5";
 
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-let updating_storage = false;
-async function getItemFromLocal(item, default_value) {
-    while (updating_storage) {
-        await sleep(500);
-    }
-    updating_storage = true;
-    const value_from_storage = await browser.storage.local.get({
-        [item]: default_value,
-    });
-    updating_storage = false;
+//TODO Fix this copied function, want to use `BrowserStorageManager` instead
+async function getItemFromLocal(key, default_value) {
+    let storage_value = null;
     try {
-        return JSON.parse(value_from_storage[item]);
-    } catch {
+        storage_value = await browser.storage.local.get(key);
+
+        // Objects not in storage don't need to be parsed as JSON
+        if (storage_value === null) {
+            console.warn("No value found for [" + key + "], using default: ", {
+                [key]: default_value
+            });
+            return default_value;
+        }
+
+        // Everything going to plan
+        return JSON.parse(storage_value[key]);
+    } catch (error) {
+        console.error("Error getting storage value [" + key + "]: ", {
+            error,
+            default_value,
+            storage_value
+        });
+
+        // Still degrading gracefully by returning the default value
         return default_value;
     }
 }
