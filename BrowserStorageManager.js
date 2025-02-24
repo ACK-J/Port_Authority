@@ -3,15 +3,28 @@ const STORAGE_LOCK_KEY = "port_authority_storage_lock";
 
 // Not for public use, has no transaction guarantees
 async function UNLOCKED_getItemFromLocal(key, default_value) {
-    const storage_value = await browser.storage.local.get({ [key]: default_value });
+    let storage_value = null;
     try {
+        storage_value = await browser.storage.local.get(key);
+
+        // Objects not in storage don't need to be parsed as JSON
+        if(storage_value === null) {
+            console.warn("No value found for [" + key + "], using default: ", {
+                [key]: default_value
+            });
+            return default_value;
+        }
+
+        // Everything going to plan
         return JSON.parse(storage_value[key]);
     } catch (error) {
-        console.error("Error parsing storage value [" + key + "]: ", {
+        console.error("Error getting storage value [" + key + "]: ", {
             error,
             default_value,
             storage_value
         });
+
+        // Still degrading gracefully by returning the default value
         return default_value;
     }
 }
@@ -29,7 +42,7 @@ export async function getItemFromLocal(key, default_value) {
 }
 
 export async function setItemInLocal(key, value) {
-    if(!value) console.warn("Storing empty value to key ["+key+"]: ", value);
+    if (!value) console.warn("Storing empty value to key [" + key + "]: " + value);
 
     const stringifiedValue = JSON.stringify(value);
     console.debug("Setting storage: ", {[key]: value})
@@ -76,7 +89,7 @@ export async function clearLocalItems(default_structure = {}) {
                 [key, JSON.stringify(value)]
         ));
 
-    console.debug("clearing local storage with default values: ", {
+    console.debug("Clearing local storage with default values: ", {
         passed: default_structure,
         parsed: default_structure_stringified
     })
@@ -88,6 +101,4 @@ export async function clearLocalItems(default_structure = {}) {
             default_structure_stringified
         );
     });
-
-    console.debug("new state: ", browser.storage.local.get())
 }
