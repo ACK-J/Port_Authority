@@ -260,7 +260,8 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
 async function onMessage(message, sender) {
   // Add origin check for security
   const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
-  if (sender.origin !== extensionOrigin) {
+  console.log('onmessage', message, sender, extensionOrigin)
+  if (sender.url !== `${extensionOrigin}/popup/popup.html`) {
     console.warn('Message from unexpected origin:', sender.url);
     return;
   }
