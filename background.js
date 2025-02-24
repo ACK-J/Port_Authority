@@ -145,32 +145,29 @@ async function cancel(requestDetails) {
 
 async function start() {  // Enables blocking
     try {
-        // Is this good behavior? Wipes storage instead of allowing for persisting settings
-        await clearLocalItems({
-            "allowed_domain_list": []
-        });
-        localStorage.setItem("state", true);
         //Add event listener
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
             { urls: ["<all_urls>"] }, // Match all HTTP, HTTPS, FTP, FTPS, WS, WSS URLs.
             ["blocking"] // if cancel() returns true block the request.
         );
+
+        await setItemInLocal("blocking_enabled", true);
     } catch (e) {
         console.log("START() ", e);
     }
 
 }
 
-function stop() {  // Disables blocking
+async function stop() {  // Disables blocking
     try {
-        localStorage.setItem("state", false);
         //Remove event listener
         browser.webRequest.onBeforeRequest.removeListener(cancel);
+
+        await setItemInLocal("blocking_enabled", false);
     } catch (e) {
         console.log("STOP() ", e);
     }
-
 }
 
 function setNotificationsAllowed(value) {  // toggles notifications
@@ -264,6 +261,10 @@ start();
 browser.tabs.onUpdated.addListener(handleUpdated);
 
 // Is this good behavior? Wipes storage instead of allowing for persisting settings
-browser.runtime.onStartup.addListener(async () => { 
-    await clearLocalItems();
- })
+browser.runtime.onStartup.addListener(() => {
+    clearLocalItems({
+        "allowed_domain_list": [],
+        "blocking_enabled": true,
+        "notifications_enabled": true
+    });
+ });
