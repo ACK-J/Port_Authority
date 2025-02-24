@@ -33,8 +33,8 @@ async function getItemFromLocal(item, defaultValue) {
 }
 
 /**
- * Sets an item in local storage. 
- * This function is locked to the storageMutex to prevent overwriting data.
+ * **Use setItemInLocal for files outside of this one.**
+ * Private function to set an item in local storage. This function is NOT locked to the storageMutex.
  * 
  * @param {string} key Key of the item to fetch from local storage
  * @param {any} value The value to set the item to in local storage
@@ -46,7 +46,8 @@ async function _setItemInLocalGuts(key, value) {
   });
 }
 /**
- * 
+ * Sets an item in local storage. 
+ * This function is locked to the storageMutex to prevent overwriting data.
  * 
  * @param {string} key Key of the item to fetch from local storage
  * @param {any} value The value to set the item to in local storage
