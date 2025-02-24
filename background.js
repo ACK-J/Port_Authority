@@ -47,62 +47,6 @@ async function notifyThreatMetrix(domain_name) {
     }
 }
 
-/**
- * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
- * 
- * @param {string} tabId Id the of the browser tab the port check was executed in
- * @param {URL} url URL object built from the url of the tab associated with the tabID
- */
-const addBlockedPortToHost = async (url, tabIdString) => {
-    const tabId = parseInt(tabIdString);
-    const host = url.host.split(":")[0];
-    const port = "" + (url.port || getPortForProtocol(url.protocol));
-
-    // Grab the blocked ports object from extensions storage
-    const blocked_ports = await getItemFromLocal("blocked_ports", {});
-
-    // Grab the array of ports blocked for the host url
-    const tab_hosts = blocked_ports[tabId] || {};
-    let hosts_ports = tab_hosts[host];
-    if (Array.isArray(hosts_ports)) {
-        // Add the port to the array of blocked ports for this host IFF the port doesn't exist
-        if (hosts_ports.indexOf(port) === -1) {
-            hosts_ports = tab_hosts[host].concat([port]);
-            tab_hosts[host] = hosts_ports;
-            blocked_ports[tabId] = tab_hosts;
-            await setItemInLocal("blocked_ports", blocked_ports);
-        }
-
-    } else {
-        tab_hosts[host] = [port];
-        blocked_ports[tabId] = tab_hosts;
-        await setItemInLocal("blocked_ports", blocked_ports);
-    }
-}
-
-/**
- * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
- * 
- * @param {string} tabId Id the of the browser tab the port check was executed in
- * @param {URL} url URL object built from the url of the tab associated with the tabID
- */
-async function addBlockedTrackingHost(url, tabIdString) {
-    const tabId = parseInt(tabIdString);
-    const host = url.host;
-
-    const blocked_hosts_tabs = await getItemFromLocal("blocked_hosts", {});
-
-    let blocked_hosts = blocked_hosts_tabs[tabId] || [];
-
-    if (blocked_hosts.indexOf(host) === -1) {
-        blocked_hosts = blocked_hosts.concat([host]);
-    }
-
-    blocked_hosts_tabs[tabId] = blocked_hosts;
-    
-    await setItemInLocal("blocked_hosts", blocked_hosts_tabs);
-}
-
 async function cancel(requestDetails) {
     // First check the whitelist
     let check_allowed_url;
@@ -260,7 +204,6 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
 async function onMessage(message, sender) {
   // Add origin check for security
   const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
-  console.log('onmessage', message, sender, extensionOrigin)
   if (sender.url !== `${extensionOrigin}/popup/popup.html`) {
     console.warn('Message from unexpected origin:', sender.url);
     return;
