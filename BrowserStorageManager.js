@@ -22,12 +22,12 @@ const STORAGE_LOCK_KEY = "port_authority_storage_lock";
  * @see `modifyItemInLocal` If you need to change a value in addition to reading it (safely)
  */
 async function UNLOCKED_getItemFromLocal(key, default_value) {
-    let storage_value = null;
+    let storage_value;
     try {
         storage_value = await browser.storage.local.get(key);
 
-        // Objects not in storage don't need to be parsed as JSON
-        if(storage_value === null) {
+        // Objects not in storage return an empty object and don't need to be parsed as JSON
+        if(Object.keys(storage_value).length === 0) {
             console.warn("No value found for [" + key + "], using default: ", {
                 [key]: default_value
             });
