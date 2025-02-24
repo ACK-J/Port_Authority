@@ -41,17 +41,6 @@
     }
   },
 
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "popup/PopupUI.js"
-      ]
-    }
-  ],
-
   "options_ui": {
     "page": "settings/settings.html"
   }
