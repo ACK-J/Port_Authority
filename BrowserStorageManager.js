@@ -1,5 +1,14 @@
+/* The storage mutex allows us to prevent multiple updates to local storage at the same time. Requests to local storage from this file execute in a FIFO order. */
 let storageMutex = Promise.resolve();
 
+/**
+ * **Use getItemFromLocal for files outside of this one.**
+ * Private function to fetch an item from local storage. This function is NOT locked to the storageMutex.
+ * 
+ * @param {string} item Key of the item to fetch from local storage
+ * @param {any} defaultValue Default value to return if the item is not found in local storage
+ * @returns {any} The item from local storage or the default value if the item is not found
+ */
 async function _getItemFromLocalGuts(item, defaultValue) {
   const result = await browser.storage.local.get(item);
   try {
@@ -8,6 +17,14 @@ async function _getItemFromLocalGuts(item, defaultValue) {
     return defaultValue;
   }
 }
+/**
+ * Gets an item from local storage.
+ * This function is locked to the storageMutex to prevent overwriting data.
+ * 
+ * @param {string} item Key of the item to fetch from local storage
+ * @param {any} defaultValue Default value to return if the item is not found in local storage
+ * @returns {any} The item from local storage or the default value if the item is not found
+ */
 async function getItemFromLocal(item, defaultValue) {
   return storageMutex = storageMutex.then(async () => {
     const result = await _getItemFromLocalGuts(item, defaultValue);
@@ -15,12 +32,26 @@ async function getItemFromLocal(item, defaultValue) {
   });
 }
 
-
+/**
+ * Sets an item in local storage. 
+ * This function is locked to the storageMutex to prevent overwriting data.
+ * 
+ * @param {string} key Key of the item to fetch from local storage
+ * @param {any} value The value to set the item to in local storage
+ * @returns void
+ */
 async function _setItemInLocalGuts(key, value) {
   return browser.storage.local.set({
     [key]: JSON.stringify(value)
   });
 }
+/**
+ * 
+ * 
+ * @param {string} key Key of the item to fetch from local storage
+ * @param {any} value The value to set the item to in local storage
+ * @returns void
+ */
 async function setItemInLocal(key, value) {
   return storageMutex = storageMutex.then(async () => {
     await _setItemInLocalGuts(key, value);
