@@ -2,26 +2,6 @@
 "use strict";
 const SECTION_HEADER_ELEMENT = "h5";
 
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-let updating_storage = false;
-async function getItemFromLocal(item, default_value) {
-    while (updating_storage) {
-        await sleep(500);
-    }
-    updating_storage = true;
-    const value_from_storage = await browser.storage.local.get({
-        [item]: default_value,
-    });
-    updating_storage = false;
-    try {
-        return JSON.parse(value_from_storage[item]);
-    } catch {
-        return default_value;
-    }
-}
-
 /**
  * Applies an object of variable_name: variable_value as attributes to a provided DOM element.
  *

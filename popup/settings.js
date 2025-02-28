@@ -1,34 +1,3 @@
-let updating_storage = false;
-
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function getItemFromLocal(item, default_value) {
-    while (updating_storage) {
-        await sleep(500);
-    }
-    updating_storage = true;
-    const value_from_storage = await browser.storage.local.get({
-        [item]: default_value,
-    });
-    updating_storage = false;
-    try {
-        return JSON.parse(value_from_storage[item]);
-    } catch {
-        return default_value;
-    }
-}
-
-async function setItemInLocal(key, value) {
-    while (updating_storage) {
-        await sleep(500);
-    }
-    updating_storage = true;
-    await browser.storage.local.set({ [key]: JSON.stringify(value) });
-    updating_storage = false;
-    return;
-}
 
 async function handleClick(e) {
     if (e.target.dataset.action === "removeDomain" && e.target.dataset.domain) {
@@ -66,13 +35,17 @@ async function load_allowed_domains() {
         button.dataset.domain = domain;
         button.dataset.action = "removeDomain";
 
-        return `<li>${domain} ${button.outerHTML}</li>`;
+        const li = document.createElement("li");
+        li.append(document.createTextNode(domain + " "));
+        li.appendChild(button);
+        return li;
     });
 
     const allowDomainsListDomElement = document.getElementById(
         "allowedDomainsListID"
     );
-    allowDomainsListDomElement.innerHTML = domainDomElements.join("");
+    allowDomainsListDomElement.innerHTML = "";
+    domainDomElements.forEach(li => allowDomainsListDomElement.appendChild(li));
     allowDomainsListDomElement.addEventListener("click", handleClick);
 }
 

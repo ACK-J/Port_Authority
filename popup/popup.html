@@ -14,12 +14,12 @@
 </head>
 
 <body>
-    <div class="container-fluid" style="min-width: 200px;">
+    <div class="container-fluid popup-container">
         <div class="row">
             <nav class="col-12 navbar-margin navbar banner-color d-flex align-items-center justify-content-center">
                 <div class="navbar-brand d-flex">
                     <img src="../icons/logo-32.png" width="32" height="32" alt="">
-                    <span style="color: #FFFFFF;" class="brand ml-2 bold">
+                    <span class="brand ml-2 bold navbar-brand-text">
                         Port Authority
                     </span>
                 </div>
@@ -29,14 +29,14 @@
         <div class="row" id="config_section">
             <div class="col-12">
                 <h5 class="bold-text">Options
-                <img src="../icons/settings.png" style="float: right;" width="24" height="24" alt="" id="settings">
+                <img src="../icons/settings.png" class="settings-icon" width="24" height="24" alt="" id="settings">
                 </h5>
             </div>
             <div class="col-sm-1">
                 <label class="switch">
                     <input type="checkbox" id="globalStatusPortAuthority">
                     <span class="slider round"></span>
-                    <label id="configs_switch_filter" class="bold" style="font-size: 16px;">Blocking</label>
+                    <label id="configs_switch_filter" class="bold switch-label">Blocking</label>
                 </label>
             </div>
         </div>
@@ -46,7 +46,7 @@
                 <label class="switch">
                     <input type="checkbox" id="notificationStatusPortAuthority">
                     <span class="slider round"></span>
-                    <label id="configs_switch_filter" class="bold" style="font-size: 16px;">Notifications</label>
+                    <label id="configs_switch_filter" class="bold switch-label">Notifications</label>
                 </label>
             </div>
         </div>
@@ -55,9 +55,9 @@
         </div>
         <br />
     </div>
-    <script type="module" src="switch.js"></script>
-
     <script src="scripts/bootstrap.bundle.min.js"></script>
+    <script src="../BrowserStorageManager.js"></script>
+    <script type="module" src="switch.js"></script>
     <script type="module" src="PopupUI.js"></script>
 </body>
 

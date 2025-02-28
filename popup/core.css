@@ -70,3 +70,27 @@ body {
   font-weight:bold;
 }
 
+.popup-container {
+    min-width: 200px;
+}
+
+.navbar-brand-text {
+    color: #FFFFFF;
+}
+
+#settings img {
+    float: right;
+}
+
+.switch-label {
+    font-size: 16px;
+}
+
+.settings-icon {
+    float: right;
+}
+
+.warning-text {
+    color: red;
+}
+
