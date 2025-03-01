@@ -64,19 +64,21 @@ async function UNLOCKED_getItemFromLocal(key, default_value) {
  * @see `UNLOCKED_getItemFromLocal` For the lock-free function this wraps
  */
 export async function getItemFromLocal(key, default_value) {
-    console.debug("Reading storage: " + key);
-
     return navigator.locks.request(STORAGE_LOCK_KEY,
         { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
-        async (lock) =>
-            await UNLOCKED_getItemFromLocal(key, default_value)
+        async (lock) => {
+            const value = await UNLOCKED_getItemFromLocal(key, default_value);
+            console.debug("Reading storage:", {[key]: value});
+            return value;
+        }
     );
 }
 
 /**
+ * @template T
  * @param {string} key Used to reference stored value from `browser.storage.local`
- * @param {any} value Stored blindly, overwrites any previous value
- * @returns {Promise} Resolves once operation is finished
+ * @param {T} value Stored blindly, overwrites any previous value
+ * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
  * 
  * @see `modifyItemInLocal` If you need to read a value, mutate it, then save it (with transaction safety)
  * @see `clearLocalItems` To clear and set all stored values at once
@@ -85,12 +87,13 @@ export async function setItemInLocal(key, value) {
     if (!value && value !== false) console.warn("Storing empty value to key [" + key + "]: " + value);
 
     const stringifiedValue = JSON.stringify(value);
-    console.debug("Setting storage: ", {[key]: value})
 
     // Acquire lock for write access before updating
-    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) =>
-        await browser.storage.local.set({ [key]: stringifiedValue })
-    );
+    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
+        await browser.storage.local.set({ [key]: stringifiedValue });
+        console.debug("Setting storage:", {[key]: value});
+        return value;
+    });
 }
 
 /**
@@ -98,7 +101,7 @@ export async function setItemInLocal(key, value) {
  * @param {string} key Used to reference stored value from `browser.storage.local`
  * @param {T} default_value Will be passed as the original value to `mutate` if nothing is found in storage
  * @param {(original_value: T)=>T} mutate Pass a function to be applied to the stored value
- * @returns {Promise<T>} Resolves once operation is finished, returning the result of the modification
+ * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
  * 
  * @example
  * // Starting storage state: `{key_example: 1}`
@@ -133,9 +136,9 @@ export async function modifyItemInLocal(key, default_value, mutate) {
             [key]: JSON.stringify(new_value)
         }); 
 
-        console.debug("Modified stored value ["+key+"]:", {
-            old: initial_value,
-            new: new_value
+        console.debug("Updating storage value: ", key, {
+            ["old " + key]: initial_value,
+            ["new " + key]: new_value
         });
         
         // Return result of modification so can use later
@@ -171,7 +174,7 @@ export async function clearLocalItems(default_structure = {}) {
                 [key, JSON.stringify(value)]
         ));
 
-    console.debug("Clearing local storage with default values: ", {
+    console.debug("Clearing local storage with default values:", {
         passed: default_structure,
         parsed: default_structure_stringified
     })

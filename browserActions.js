@@ -29,16 +29,15 @@ export async function notifyThreatMetrix(domain_name) {
 /**
  * Updates the extension button's little badge text, only on the tab where it's relevant
  * @param {string} text The new badge text to display
- * @param {number} tabId The id of the tab the new 
+ * @param {number} tabId The id of the tab to show the new badge on
  */
 export function updateBadges(text, tabId) {
     try {
         browser.browserAction.setBadgeText({
-            text: text,
-            tabId: tabId,
-            windowId: 1
+            text: text.toString(),
+            tabId: parseInt(tabId)
         });
-    } catch (e) {
-
+    } catch (error) {
+        console.error("Couldn't update badge:", { tabId, text, error });
     }
 }

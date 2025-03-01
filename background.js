@@ -4,6 +4,7 @@ import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
     // fall back to the default values until explicitly set
+    console.log("Startup called");
 
 	// Get the blocking state from cold storage
     const state = await getItemFromLocal("blocking_enabled", true); 
@@ -20,6 +21,7 @@ async function cancel(requestDetails) {
     try {
         check_allowed_url = new URL(requestDetails.originUrl);
     } catch {
+        console.error("Aborted filtering on domain due to unparseable domain: ", requestDetails.originUrl);
         return { cancel: false }; // invalid origin
     }
 
@@ -29,6 +31,7 @@ async function cancel(requestDetails) {
         (domain) => check_allowed_url.host === domain
     );
     if (domainIsWhiteListed){
+        console.debug("Aborted filtering on domain due to whitelist: ", check_allowed_url);
         return { cancel: false };
     }
 
@@ -46,8 +49,10 @@ async function cancel(requestDetails) {
         let resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
         // If the CNAME redirects to a online-metrix.net domain -> Block
         if (thm.test(resolving.canonicalName)) {
+            console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
             await increaseBadge(requestDetails, true); // increment badge and alert
             await addBlockedTrackingHost(url, requestDetails.tabId);
+            console.debug("Got past notifications and all, blocking now:", {url: url, cname: resolving.canonicalName});
             return { cancel: true };
         }
     }
@@ -57,8 +62,11 @@ async function cancel(requestDetails) {
         // If URL in the address bar is a local address dont block the request
         if (!local_filter.test(requestDetails.originUrl)) {
             let url = new URL(requestDetails.url);
+            console.debug("Blocking domain for portscanning: ", url);
             await increaseBadge(requestDetails, false); // increment badge and alert
+            console.debug("got through increasebadge ok")
             await addBlockedPortToHost(url, requestDetails.tabId);
+            console.debug("Got past notifications and all, blocking now:", url);
             return { cancel: true };
         }
     }
@@ -75,9 +83,10 @@ async function start() {  // Enables blocking
             ["blocking"] // if cancel() returns true block the request.
         );
 
+        console.log("Attached `onBeforeRequest` listener successfully: blocking enabled");
         await setItemInLocal("blocking_enabled", true);
     } catch (e) {
-        console.log("START() ", e);
+        console.error("START() ", e);
     }
 }
 
@@ -86,9 +95,10 @@ async function stop() {  // Disables blocking
         //Remove event listener
         browser.webRequest.onBeforeRequest.removeListener(cancel);
 
+        console.log("Removed `onBeforeRequest` listener successfully: blocking disabled");
         await setItemInLocal("blocking_enabled", false);
     } catch (e) {
-        console.log("STOP() ", e);
+        console.error("STOP() ", e);
     }
 }
 
@@ -129,14 +139,14 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
         // Clear out the blocked ports for the current tab
         await modifyItemInLocal("blocked_ports", {},
             (blocked_ports_object) => {
-                blocked_ports_object[tabId] = {};
+                delete blocked_ports_object[tabId];
                 return blocked_ports_object;
             });
 
         // Clear out the hosts for the current tab
         await modifyItemInLocal("blocked_hosts", {},
             (blocked_hosts_object) => {
-                blocked_hosts_object[tabId] = [];
+                delete blocked_hosts_object[tabId];
                 return blocked_hosts_object;
             });
     }
@@ -150,12 +160,11 @@ async function onMessage(message, sender) {
     return;
   }
 
-  const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
       return {
         isListening: await isListening(),
-        notificationsAllowed,
+        notificationsAllowed: await getItemFromLocal("notificationsAllowed", true),
       };
     case 'toggleEnabled':
       message.value ? await start() : await stop();
