@@ -1,3 +1,6 @@
+// TODO remove these eventually, that they're needed is a sign of bad code encapsulation
+import { updateBadges, notifyThreatMetrix, notifyPortScanning } from "./browserActions.js";
+
 // Key required to access the same lock that's used to control write access to localStorage
 const STORAGE_LOCK_KEY = "port_authority_storage_lock";
 
@@ -79,7 +82,7 @@ export async function getItemFromLocal(key, default_value) {
  * @see `clearLocalItems` To clear and set all stored values at once
  */
 export async function setItemInLocal(key, value) {
-    if (!value) console.warn("Storing empty value to key [" + key + "]: " + value);
+    if (!value && value !== false) console.warn("Storing empty value to key [" + key + "]: " + value);
 
     const stringifiedValue = JSON.stringify(value);
     console.debug("Setting storage: ", {[key]: value})
@@ -182,6 +185,10 @@ export async function clearLocalItems(default_structure = {}) {
     });
 }
 
+
+
+
+
 /**
  * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
  * 
@@ -190,7 +197,7 @@ export async function clearLocalItems(default_structure = {}) {
  */
 export async function addBlockedPortToHost(url, tabIdString) {
     const tabId = parseInt(tabIdString);
-    const host = url.host.split(":")[0];
+    const host = url.host.split(":")[0]; // TODO replace with more robust method to get host, this might act funky around IPv6 addresses
     const port = "" + (url.port || getPortForProtocol(url.protocol));
 
     // Grab the blocked ports object from extensions storage
@@ -235,12 +242,6 @@ export async function addBlockedTrackingHost(url, tabIdString) {
         return blocked_hosts_tabs;
     });
 }
-
-/* TODO REFACTOR THIS OUT, UNSAFE LOADED FOOTGUN */
-// TODO better separate concerns between storage related things and browser actions
-import { notifyThreatMetrix } from "./browserActions.js";
-import { notifyPortScanning } from "./browserActions.js";
-
 /**
  * Increases the badged by one.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
@@ -252,7 +253,7 @@ export async function increaseBadge(request, isThreatMetrix) {
     // Error checking for invalid request
     if (!request || tabId === -1) {
         console.error('Invalid `request` passed to increaseBadge: ',
-            {request, isThreatMetrix}
+            { request, isThreatMetrix }
         );
         return;
     };
@@ -273,10 +274,7 @@ export async function increaseBadge(request, isThreatMetrix) {
 
         // TODO better separate concerns between storage related things and browser actions
         // Update badge text
-        browser.browserAction.setBadgeText({
-            text: (badges[tabId]).counter.toString(),
-            tabId: tabId
-        }).catch();
+        updateBadges(badges[tabId].counter, tabId);
 
         // TODO better separate concerns between storage related things and browser actions
         // Update notification alerted status

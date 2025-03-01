@@ -1,40 +1,44 @@
 
-// TODO better separate concerns between storage related things and browser actions
-// Currently importing this from BrowserStorageManager, reaaally need to stop doing that
-
 export async function notifyPortScanning(domain_name) {
-    if (domain_name) {
-        browser.notifications.create("port-scanning-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Port Scan Blocked",
-            "message": "Port Authority blocked " + domain_name + " from port scanning your private network."
-        });
-    } else {
-        browser.notifications.create("port-scanning-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Port Scan Blocked",
-            "message": "Port Authority blocked this site from port scanning your private network."
-        });
-    }
-}// TODO better separate concerns between storage related things and browser actions
-// Currently importing this from BrowserStorageManager, reaaally need to stop doing that
+    const message = (domain_name) ?
+        "Port Authority blocked " + domain_name + " from port scanning your private network."
+        : "Port Authority blocked this site from port scanning your private network.";
+
+    return browser.notifications.create("port-scanning-notification", {
+        "type": "basic",
+        "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
+        "title": "Port Scan Blocked",
+        "message": message
+    });
+}
 
 export async function notifyThreatMetrix(domain_name) {
-    if (domain_name) {
-        browser.notifications.create("threatmetrix-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Tracking Script Blocked",
-            "message": "Port Authority blocked a hidden LexisNexis endpoint on " + domain_name + " from running an invasive data collection script."
+    const message = (domain_name) ?
+        "Port Authority blocked a hidden LexisNexis endpoint on " + domain_name + " from running an invasive data collection script."
+        : "Port Authority blocked a hidden LexisNexis endpoint from running an invasive data collection script.";
+
+    return browser.notifications.create("threatmetrix-notification", {
+        "type": "basic",
+        "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
+        "title": "Tracking Script Blocked",
+        "message": message
+    });
+}
+
+
+/**
+ * Updates the extension button's little badge text, only on the tab where it's relevant
+ * @param {string} text The new badge text to display
+ * @param {number} tabId The id of the tab the new 
+ */
+export function updateBadges(text, tabId) {
+    try {
+        browser.browserAction.setBadgeText({
+            text: text,
+            tabId: tabId,
+            windowId: 1
         });
-    } else {
-        browser.notifications.create("threatmetrix-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Tracking Script Blocked",
-            "message": "Port Authority blocked a hidden LexisNexis endpoint from running an invasive data collection script."
-        });
+    } catch (e) {
+
     }
 }
