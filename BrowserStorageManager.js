@@ -9,7 +9,7 @@ const STORAGE_LOCK_KEY = "port_authority_storage_lock";
  * @private
  * @param {string} key - Used to reference stored value from `browser.storage.local`
  * @param {any} [default_value] - Will be returned if there is no value in storage under `key`
- * @returns {any} Type is probably the same as `default_value` due to convention yet isn't checked or guaranteed at all
+ * @returns {Promise<any>} Type is probably the same as `default_value` due to convention yet isn't checked or guaranteed at all
  * 
  * @remarks
  * Doesn't have any atomicity or transaction guarantees like the exported functions do.
@@ -148,7 +148,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
 }
 
 /**
- * @param {Map<string, any>} [default_structure] Used to set initial storage values.
+ * @param {{[key: string]: any}} [default_structure] Used to set initial storage values.
  * The object will be `JSON.stringify`'d transparently, so complex objects can be used.
  * @returns {Promise} Resolves once operation is finished
  * 
