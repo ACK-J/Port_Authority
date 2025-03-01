@@ -20,16 +20,15 @@ This addon blocks websites from using javascript to port scan your computer/inte
 5. Gives a nice notification when one of the above scenarios are blocked
 6. This addon doesn't store/transmit/log any data or metadata about you or your requests... because, ya know, privacy
 
-## Donations ❤️
-If you are feeling generous or really like my work, consider donating
+## Donations
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
 
 ## Regex Explanation
-- Explanation of the regex used to determine local addresses: https://regex101.com/r/DOPCdB/17
+- Explanation of the regex used to determine local addresses: https://regex101.com/r/LSL180/1
 - Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
 ## Test All Forms of Port Scanning 
-- A webpage I made to test all forms of scanning in one location: https://www.g666gle.me/PortScan.html
+- A webpage I made to test all forms of scanning in one location using the ./TestPortScans.html file
 
 ## Test HTTP / HTTPS Portscanning
 - Site where you can test if HTTP port scanning works: https://defuse.ca/in-browser-port-scanning.htm

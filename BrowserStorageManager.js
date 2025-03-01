@@ -177,3 +177,114 @@ export async function clearLocalItems(default_structure = {}) {
         );
     });
 }
+
+/**
+ * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
+ * 
+ * @param {URL} url URL object built from the url of the tab associated with the tabID
+ * @param {string} tabId Id the of the browser tab the port check was executed in
+ */
+export async function addBlockedPortToHost(url, tabIdString) {
+    const tabId = parseInt(tabIdString);
+    const host = url.host.split(":")[0];
+    const port = "" + (url.port || getPortForProtocol(url.protocol));
+
+    // Grab the blocked ports object from extensions storage
+    return modifyItemInLocal("blocked_ports", {}, (blocked_ports) => {
+        // Grab the array of ports blocked for the host url
+        const tab_hosts = blocked_ports[tabId] || {};
+        let hosts_ports = tab_hosts[host];
+        if (Array.isArray(hosts_ports)) {
+            // Add the port to the array of blocked ports for this host IFF the port doesn't exist
+            if (hosts_ports.indexOf(port) === -1) {
+                hosts_ports = tab_hosts[host].concat([port]);
+                tab_hosts[host] = hosts_ports;
+                blocked_ports[tabId] = tab_hosts;
+            }
+        } else {
+            tab_hosts[host] = [port];
+            blocked_ports[tabId] = tab_hosts;
+        }
+        return blocked_ports;
+    });
+}
+
+/**
+ * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
+ * 
+ * @param {URL} url URL object built from the url of the tab associated with the tabID
+ * @param {string} tabId Id the of the browser tab the port check was executed in
+ */
+export async function addBlockedTrackingHost(url, tabIdString) {
+    const tabId = parseInt(tabIdString);
+    const host = url.host;
+
+    return modifyItemInLocal("blocked_hosts", {}, (blocked_hosts_tabs) => {
+        let blocked_hosts = blocked_hosts_tabs[tabId] || [];
+
+        if (blocked_hosts.indexOf(host) === -1) {
+            blocked_hosts = blocked_hosts.concat([host]);
+        }
+
+        blocked_hosts_tabs[tabId] = blocked_hosts;
+
+        return blocked_hosts_tabs;
+    });
+}
+
+/* TODO REFACTOR THIS OUT, UNSAFE LOADED FOOTGUN */
+// TODO better separate concerns between storage related things and browser actions
+import { notifyThreatMetrix, notifyPortScanning } from "./background.js";
+
+/**
+ * Increases the badged by one.
+ * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ */
+export async function increaseBadge(request, isThreatMetrix) {
+    const tabId = request?.tabId;
+    const url = request?.url;
+
+    // Error checking for invalid request
+    if (!request || tabId === -1) {
+        console.error('Invalid `request` passed to increaseBadge: ',
+            {request, isThreatMetrix}
+        );
+        return;
+    };
+
+    // Actual badge update
+    return modifyItemInLocal("badges", {}, async (badges) => {
+        // Initialize badge info for the tab if empty
+        if (!badges[tabId]) {
+            badges[tabId] = {
+                counter: 0,
+                alerted: 0,
+                lastURL: url
+            };
+        }
+
+        // Update badge number
+        badges[tabId].counter += 1;
+
+        // TODO better separate concerns between storage related things and browser actions
+        // Update badge text
+        browser.browserAction.setBadgeText({
+            text: (badges[tabId]).counter.toString(),
+            tabId: tabId
+        }).catch();
+
+        // TODO better separate concerns between storage related things and browser actions
+        // Update notification alerted status
+        const notifications_enabled = await UNLOCKED_getItemFromLocal("notificationsAllowed", true);
+        if (badges[tabId].alerted === 0 && notifications_enabled) {
+            badges[tabId].alerted += 1;
+            if (isThreatMetrix) {
+                notifyThreatMetrix(new URL(request.originUrl).host);
+            } else {
+                notifyPortScanning(new URL(request.originUrl).host);
+            }
+        }
+
+        return badges;
+    });
+}
