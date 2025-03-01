@@ -22,8 +22,8 @@ const STORAGE_LOCK_KEY = "port_authority_storage_lock";
  * Also it's {@link https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage#:~:text=values%20stored%20can%20be%20any%20JSON%2Difiable%20value | likely} 
  * that `JSON.stringify` can be abandoned and was never needed in the first place, extension `storage` access supports types other than strings by default.
  * 
- * @see `getItemFromLocal` For lock-safe storage reading version
- * @see `modifyItemInLocal` If you need to change a value in addition to reading it (safely)
+ * @see {@linkcode getItemFromLocal} For lock-safe storage reading version
+ * @see {@linkcode modifyItemInLocal} If you need to change a value in addition to reading it (safely)
  */
 async function UNLOCKED_getItemFromLocal(key, default_value) {
     let storage_value;
@@ -61,8 +61,8 @@ async function UNLOCKED_getItemFromLocal(key, default_value) {
  * Don't need `exclusive` lock for reading, just writing and modifying.
  * *Do* still need `shared` lock to prevent reading in the middle of a modify action.
  * 
- * @see `modifyItemInLocal` If you need to change a value in addition to reading it
- * @see `UNLOCKED_getItemFromLocal` For the lock-free function this wraps
+ * @see {@linkcode modifyItemInLocal} If you need to change a value in addition to reading it
+ * @see {@linkcode UNLOCKED_getItemFromLocal} For the lock-free function this wraps
  */
 export async function getItemFromLocal(key, default_value) {
     return navigator.locks.request(STORAGE_LOCK_KEY,
@@ -81,8 +81,8 @@ export async function getItemFromLocal(key, default_value) {
  * @param {T} value Stored blindly, overwrites any previous value
  * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
  * 
- * @see `modifyItemInLocal` If you need to read a value, mutate it, then save it (with transaction safety)
- * @see `clearLocalItems` To clear and set all stored values at once
+ * @see {@linkcode modifyItemInLocal} If you need to read a value, mutate it, then save it (with transaction safety)
+ * @see {@linkcode clearLocalItems} To clear and set all stored values at once
  */
 export async function setItemInLocal(key, value) {
     if (!value && value !== false) console.warn("Storing empty value to key [" + key + "]: " + value);
@@ -150,7 +150,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
 /**
  * @param {{[key: string]: any}} [default_structure] Used to set initial storage values.
  * The object will be `JSON.stringify`'d transparently, so complex objects can be used.
- * @returns {Promise} Resolves once operation is finished
+ * @returns {Promise<{[key: string]: any}>} Resolves once operation is finished, returning the new stored values
  * 
  * @example
  * clearLocalItems({
@@ -186,6 +186,9 @@ export async function clearLocalItems(default_structure = {}) {
         await browser.storage.local.set(
             default_structure_stringified
         );
+
+        // Return the values set
+        return default_structure;
     });
 }
 
