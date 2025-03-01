@@ -1,5 +1,6 @@
 // TODO remove these eventually, that they're needed is a sign of bad code encapsulation
 import { updateBadges, notifyThreatMetrix, notifyPortScanning } from "./browserActions.js";
+import { getPortForProtocol } from "./constants.js";
 
 // Key required to access the same lock that's used to control write access to localStorage
 const STORAGE_LOCK_KEY = "port_authority_storage_lock";
