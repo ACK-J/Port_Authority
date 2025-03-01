@@ -131,9 +131,16 @@ async function stop() {  // Disables blocking
     }
 }
 
-function isListening() { // returns if blocking is on
-    // TODO add a check that this agrees with storage state
-    return browser.webRequest.onBeforeRequest.hasListener(cancel);
+async function isListening() { // returns if blocking is on
+    const storage_state = await getItemFromLocal("blocking_enabled", true);
+    const listener_attached_state = browser.webRequest.onBeforeRequest.hasListener(cancel);
+    if (storage_state !== listener_attached_state) {
+        console.error("Mismatch in blocking state according to storage value and listener attached status:", {
+            storage_state,
+            listener_attached_state
+        });
+    }
+    return listener_attached_state;
 }
 
 /**
@@ -181,9 +188,8 @@ async function onMessage(message, sender) {
   const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
-      const state = await getItemFromLocal("blocking_enabled", true);
       return {
-        isListening: state,
+        isListening: await isListening(),
         notificationsAllowed,
       };
     case 'toggleEnabled':
