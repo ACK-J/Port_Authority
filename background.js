@@ -50,9 +50,8 @@ async function cancel(requestDetails) {
         // If the CNAME redirects to a online-metrix.net domain -> Block
         if (thm.test(resolving.canonicalName)) {
             console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
-            await increaseBadge(requestDetails, true); // increment badge and alert
-            await addBlockedTrackingHost(url, requestDetails.tabId);
-            console.debug("Got past notifications and all, blocking now:", {url: url, cname: resolving.canonicalName});
+            increaseBadge(requestDetails, true); // increment badge and alert
+            addBlockedTrackingHost(url, requestDetails.tabId);
             return { cancel: true };
         }
     }
@@ -63,10 +62,8 @@ async function cancel(requestDetails) {
         if (!local_filter.test(requestDetails.originUrl)) {
             let url = new URL(requestDetails.url);
             console.debug("Blocking domain for portscanning: ", url);
-            await increaseBadge(requestDetails, false); // increment badge and alert
-            console.debug("got through increasebadge ok")
-            await addBlockedPortToHost(url, requestDetails.tabId);
-            console.debug("Got past notifications and all, blocking now:", url);
+            increaseBadge(requestDetails, false); // increment badge and alert
+            addBlockedPortToHost(url, requestDetails.tabId);
             return { cancel: true };
         }
     }

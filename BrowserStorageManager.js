@@ -255,9 +255,7 @@ export async function increaseBadge(request, isThreatMetrix) {
 
     // Error checking for invalid request
     if (!request || tabId === -1) {
-        console.error('Invalid `request` passed to increaseBadge: ',
-            { request, isThreatMetrix }
-        );
+        console.error('Invalid `request` passed to increaseBadge:', {request, isThreatMetrix});
         return;
     };
 
