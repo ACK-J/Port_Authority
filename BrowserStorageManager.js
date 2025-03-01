@@ -95,7 +95,7 @@ export async function setItemInLocal(key, value) {
  * @param {string} key Used to reference stored value from `browser.storage.local`
  * @param {T} default_value Will be passed as the original value to `mutate` if nothing is found in storage
  * @param {(original_value: T)=>T} mutate Pass a function to be applied to the stored value
- * @returns {Promise} Resolves once operation is finished
+ * @returns {Promise<T>} Resolves once operation is finished, returning the result of the modification
  * 
  * @example
  * // Starting storage state: `{key_example: 1}`
@@ -134,6 +134,9 @@ export async function modifyItemInLocal(key, default_value, mutate) {
             old: initial_value,
             new: new_value
         });
+        
+        // Return result of modification so can use later
+        return new_value;
     });
 }
 
@@ -151,7 +154,8 @@ export async function modifyItemInLocal(key, default_value, mutate) {
  * 
  * @remarks
  * Need to obtain the lock to guarantee a clean slate, otherwise
- * the write part of a `modifyItemInLocal` call could pollute it.
+ * could be called in the middle of `modifyItemInLocal` running, clear the store,
+ * then the interrupted `modifyItemInLocal` saves its work and overwrites the cleared values.
  */
 export async function clearLocalItems(default_structure = {}) {
     // Stringify each the value for each key instead of passing directly

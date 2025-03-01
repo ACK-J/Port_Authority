@@ -10,6 +10,15 @@
     "96": "icons/logo-96.png"
   },
 
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{6c00218c-707a-4977-84cf-36df1cef310f}"
+    }
+  },
+  
+
+  "content_security_policy": "default-src 'self'; style-src 'self'",
+
   "permissions": [
     "webRequest",
     "webRequestBlocking",
@@ -20,6 +29,7 @@
     "dns",
     "<all_urls>"
   ],
+
 
   "background": {
     "scripts": ["background.js"],
@@ -38,14 +48,7 @@
       "16": "icons/logo-16.png",
       "32": "icons/logo-32.png"
     }
-  },
-
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "{6c00218c-707a-4977-84cf-36df1cef310f}"
-    }
-  },
-
-  "content_security_policy": "default-src 'self'; style-src 'self'"
+    
+  }
 
 }

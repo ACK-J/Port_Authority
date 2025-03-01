@@ -4,7 +4,7 @@ async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
     // fall back to the default values until explicitly set
 
-	// Get the blocking state
+	// Get the blocking state from cold storage
     const state = await getItemFromLocal("blocking_enabled", true); 
 	if (state === true) {
 	    start();
@@ -134,12 +134,16 @@ async function stop() {  // Disables blocking
 async function isListening() { // returns if blocking is on
     const storage_state = await getItemFromLocal("blocking_enabled", true);
     const listener_attached_state = browser.webRequest.onBeforeRequest.hasListener(cancel);
+
+    // If storage says that blocking is enabled when it actually isn't, soft throw an error to the console
     if (storage_state !== listener_attached_state) {
         console.error("Mismatch in blocking state according to storage value and listener attached status:", {
             storage_state,
             listener_attached_state
         });
     }
+
+    // Rely on the actual listener being attached as the ground source of truth over what storage says
     return listener_attached_state;
 }
 
