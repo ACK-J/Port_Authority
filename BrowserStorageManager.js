@@ -28,7 +28,7 @@ async function UNLOCKED_getItemFromLocal(key, default_value) {
 
         // Objects not in storage return an empty object and don't need to be parsed as JSON
         if(Object.keys(storage_value).length === 0) {
-            console.warn("No value found for [" + key + "], using default: ", {
+            console.warn("No value found for [" + key + "], using provided default: ", {
                 [key]: default_value
             });
             return default_value;
@@ -238,7 +238,8 @@ export async function addBlockedTrackingHost(url, tabIdString) {
 
 /* TODO REFACTOR THIS OUT, UNSAFE LOADED FOOTGUN */
 // TODO better separate concerns between storage related things and browser actions
-import { notifyThreatMetrix, notifyPortScanning } from "./background.js";
+import { notifyThreatMetrix } from "./browserActions.js";
+import { notifyPortScanning } from "./browserActions.js";
 
 /**
  * Increases the badged by one.
