@@ -101,20 +101,25 @@ export async function setItemInLocal(key, value) {
  * @template T
  * @param {string} key Used to reference stored value from `browser.storage.local`
  * @param {T} default_value Will be passed as the original value to `mutate` if nothing is found in storage
- * @param {(original_value: T)=>T} mutate Pass a function to be applied to the stored value
+ * @param {(original_value: T)=>(T | Promise<T>)} mutate Pass a function that takes the stored value and returns the new value to write. Function can be async.
  * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
  * 
  * @example
  * // Starting storage state: `{key_example: 1}`
- * // Result storage state:  `{key_example: 2}`
  * modifyItemInLocal("key_example", 0, (v)=>v++) 
+ * // Result storage state:  `{key_example: 2}`
  * 
  * @example
- * // Starting storage state: `{allowed_domain_list: ["google.com"]}`
- * // Result storage state:  `{allowed_domain_list: ["google.com", "example.com"]}`
- * modifyItemInLocal("allowed_domain_list", [],
- *     (list) => list.concat("example.com")
- * );
+ * modifyItemInLocal("key", [],
+ *     async (storageValue) => {   // storageValue: string[]
+ *         // Storage access is locked until the function returns
+ *         // no reads or writes can interrupt it
+ * 
+ *         storageValue.push("new item");
+ *         storageValue.sort();
+ * 
+ *         return storageValue;    // returned value will be written to storage
+ * });
  * 
  * @remarks
  * Need to use a lock to allow atomic and reliable modification of stored values.
@@ -148,7 +153,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
 }
 
 /**
- * @param {{[key: string]: any}} [default_structure] Used to set initial storage values.
+ * @param {{[key: string]: any}} [default_structure] Specify initial storage values to be written after clearing.
  * The object will be `JSON.stringify`'d transparently, so complex objects can be used.
  * @returns {Promise<{[key: string]: any}>} Resolves once operation is finished, returning the new stored values
  * 
