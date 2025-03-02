@@ -82,7 +82,7 @@ export async function getItemFromLocal(key, default_value) {
  * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
  * 
  * @see {@linkcode modifyItemInLocal} If you need to read a value, mutate it, then save it (with transaction safety)
- * @see {@linkcode clearLocalItems} To clear and set all stored values at once
+ * @see {@linkcode clearItemsInLocal} To clear and set all stored values at once
  */
 export async function setItemInLocal(key, value) {
     if (!value && value !== false) console.warn("Storing empty value to key [" + key + "]: " + value);
@@ -158,7 +158,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
  * @returns {Promise<{[key: string]: any}>} Resolves once operation is finished, returning the new stored values
  * 
  * @example
- * clearLocalItems({
+ * clearItemsInLocal({
  *     "allowed_domain_list": [],
  *     "blocking_enabled": true,
  *     "notifications_enabled": true
@@ -169,7 +169,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
  * could be called in the middle of `modifyItemInLocal` running, clear the store,
  * then the interrupted `modifyItemInLocal` saves its work and overwrites the cleared values.
  */
-export async function clearLocalItems(default_structure = {}) {
+export async function clearItemsInLocal(default_structure = {}) {
     // Stringify each the value for each key instead of passing directly
     // https://stackoverflow.com/a/14810722/3196151
     // This might not be necessary, matching prior practices for now though
