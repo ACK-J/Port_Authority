@@ -1,5 +1,6 @@
-// content-script.js
-"use strict";
+import { getItemFromLocal } from "../BrowserStorageManager.js";
+
+
 const SECTION_HEADER_ELEMENT = "h5";
 
 /**
@@ -186,7 +187,7 @@ async function updateBlockedHostsDisplay() {
     hosts_ul.classList.add("list-unstyled");
 
     try {
-        const blocked_hosts_tabs = await await getItemFromLocal(
+        const blocked_hosts_tabs = await getItemFromLocal(
             "blocked_hosts",
             {}
         );

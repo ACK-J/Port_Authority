@@ -2,26 +2,23 @@
 <html lang="en" class="loading">
 
 <head>
-    <title>Port Authority</title>
-    <!-- Required meta tags -->
+    <!-- Required meta tag -->
     <meta charset="utf-8">
-    <link rel="stylesheet" type="text/css" href="core.css">
+    <title>Port Authority</title>
+    <link rel="stylesheet" type="text/css" href="../popup/core.css">
 </head>
 
 <body>
     <p class="warning-text"><strong>Make sure you enter a proper domain name (ebay.com)</strong></p>
     <form>
         <label>Add new domain:</label>
-        <input type="text" id="add_domain" >
+        <input type="text" required id="add_domain" />
         <button type="submit">Save</button>
     </form>
     <br />
     <p><strong>Domains Allowed to Bypass PortAuthority Blocking:</strong></p>
     <ul id="allowedDomainsListID">
     </ul>
-    <br />
-    <script src="../BrowserStorageManager.js"></script>
-    <script src="settings.js"></script>
+    <script type="module" src="settings.js"></script>
 </body>
-
 </html>
