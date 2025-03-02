@@ -3,7 +3,7 @@
   "description": "Blocks websites from using javascript to port scan your computer/network and dynamically blocks all LexisNexis endpoints from running their invasive data collection scripts. ",
   "manifest_version": 2,
   "name": "Port Authority",
-  "version": "1.2",
+  "version": "2.0.0",
   "homepage_url": "https://github.com/ACK-J/Port_Authority",
   "icons": {
     "48": "icons/logo-48.png",
