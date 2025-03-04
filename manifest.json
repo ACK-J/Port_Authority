@@ -23,7 +23,6 @@
     "webRequest",
     "webRequestBlocking",
     "storage",
-    "unlimitedStorage",
     "tabs",
     "notifications",
     "dns",
