@@ -1,50 +1,18 @@
+import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
+    addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./BrowserStorageManager.js";
+
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
     // fall back to the default values until explicitly set
+    console.log("Startup called");
 
-	// Get the blocking state
-	const state = await getItemFromLocal("state", true); 
+	// Get the blocking state from cold storage
+    const state = await getItemFromLocal("blocking_enabled", true); 
 	if (state === true) {
 	    start();
 	} else {
 	    stop();
 	}
-}
-
-async function notifyPortScanning(domain_name) {
-    if (domain_name){
-        browser.notifications.create("port-scanning-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Port Scan Blocked",
-            "message": "Port Authority blocked " + domain_name + " from port scanning your private network."
-        });
-    } else {
-        browser.notifications.create("port-scanning-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Port Scan Blocked",
-            "message": "Port Authority blocked this site from port scanning your private network."
-        });
-    }
-}
-
-async function notifyThreatMetrix(domain_name) {
-    if (domain_name) {
-        browser.notifications.create("threatmetrix-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Tracking Script Blocked",
-            "message": "Port Authority blocked a hidden LexisNexis endpoint on " + domain_name + " from running an invasive data collection script."
-        });
-    } else {
-        browser.notifications.create("threatmetrix-notification", {
-            "type": "basic",
-            "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-            "title": "Tracking Script Blocked",
-            "message": "Port Authority blocked a hidden LexisNexis endpoint from running an invasive data collection script."
-        });
-    }
 }
 
 async function cancel(requestDetails) {
@@ -53,6 +21,7 @@ async function cancel(requestDetails) {
     try {
         check_allowed_url = new URL(requestDetails.originUrl);
     } catch {
+        console.error("Aborted filtering on domain due to unparseable domain: ", requestDetails.originUrl);
         return { cancel: false }; // invalid origin
     }
 
@@ -62,6 +31,7 @@ async function cancel(requestDetails) {
         (domain) => check_allowed_url.host === domain
     );
     if (domainIsWhiteListed){
+        console.debug("Aborted filtering on domain due to whitelist: ", check_allowed_url);
         return { cancel: false };
     }
 
@@ -79,8 +49,9 @@ async function cancel(requestDetails) {
         let resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
         // If the CNAME redirects to a online-metrix.net domain -> Block
         if (thm.test(resolving.canonicalName)) {
-            await increaseBadge(requestDetails, true); // increment badge and alert
-            await addBlockedTrackingHost(url, requestDetails.tabId);
+            console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
+            increaseBadge(requestDetails, true); // increment badge and alert
+            addBlockedTrackingHost(url, requestDetails.tabId);
             return { cancel: true };
         }
     }
@@ -90,8 +61,9 @@ async function cancel(requestDetails) {
         // If URL in the address bar is a local address dont block the request
         if (!local_filter.test(requestDetails.originUrl)) {
             let url = new URL(requestDetails.url);
-            await increaseBadge(requestDetails, false); // increment badge and alert
-            await addBlockedPortToHost(url, requestDetails.tabId);
+            console.debug("Blocking domain for portscanning: ", url);
+            increaseBadge(requestDetails, false); // increment badge and alert
+            addBlockedPortToHost(url, requestDetails.tabId);
             return { cancel: true };
         }
     }
@@ -99,35 +71,48 @@ async function cancel(requestDetails) {
     return { cancel: false };
 } // end cancel()
 
-
 async function start() {  // Enables blocking
     try {
-        await setItemInLocal("state", true); // Define the blocking state value
         //Add event listener
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
             { urls: ["<all_urls>"] }, // Match all HTTP, HTTPS, FTP, FTPS, WS, WSS URLs.
             ["blocking"] // if cancel() returns true block the request.
         );
-    } catch (e) {
-        console.log("START() ", e);
-    }
 
+        console.log("Attached `onBeforeRequest` listener successfully: blocking enabled");
+        await setItemInLocal("blocking_enabled", true);
+    } catch (e) {
+        console.error("START() ", e);
+    }
 }
 
 async function stop() {  // Disables blocking
     try {
-        await setItemInLocal("state", false); // Define the blocking state value
         //Remove event listener
         browser.webRequest.onBeforeRequest.removeListener(cancel);
-    } catch (e) {
-        console.log("STOP() ", e);
-    }
 
+        console.log("Removed `onBeforeRequest` listener successfully: blocking disabled");
+        await setItemInLocal("blocking_enabled", false);
+    } catch (e) {
+        console.error("STOP() ", e);
+    }
 }
 
-function isListening() { // returns if blocking is on
-    return browser.webRequest.onBeforeRequest.hasListener(cancel);
+async function isListening() { // returns if blocking is on
+    const storage_state = await getItemFromLocal("blocking_enabled", true);
+    const listener_attached_state = browser.webRequest.onBeforeRequest.hasListener(cancel);
+
+    // If storage says that blocking is enabled when it actually isn't, soft throw an error to the console
+    if (storage_state !== listener_attached_state) {
+        console.error("Mismatch in blocking state according to storage value and listener attached status:", {
+            storage_state,
+            listener_attached_state
+        });
+    }
+
+    // Rely on the actual listener being attached as the ground source of truth over what storage says
+    return listener_attached_state;
 }
 
 /**
@@ -136,6 +121,7 @@ function isListening() { // returns if blocking is on
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
 async function handleUpdated(tabId, changeInfo, tabInfo) {
+    // TODO investigate a better way to interact with current locking practices
     const badges = await getItemFromLocal("badges", {});
     if (!badges[tabId] || !changeInfo.url) return;
 
@@ -145,17 +131,21 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
             alerted: 0,
             lastURL: tabInfo.url
         };
-    await setItemInLocal("badges", badges);
-        
-	// Clear out the blocked ports for the current tab
-	const blocked_ports_object = await getItemFromLocal("blocked_ports", {});
-	delete blocked_ports_object[tabId];
-	await setItemInLocal("blocked_ports", blocked_ports_object);
-        
-	// Clear out the hosts for the current tab
-	const blocked_hosts_object = await getItemFromLocal("blocked_hosts", {});
-	delete blocked_hosts_object[tabId];
-	await setItemInLocal("blocked_hosts", blocked_hosts_object);
+        await setItemInLocal("badges", badges);
+
+        // Clear out the blocked ports for the current tab
+        await modifyItemInLocal("blocked_ports", {},
+            (blocked_ports_object) => {
+                delete blocked_ports_object[tabId];
+                return blocked_ports_object;
+            });
+
+        // Clear out the hosts for the current tab
+        await modifyItemInLocal("blocked_hosts", {},
+            (blocked_hosts_object) => {
+                delete blocked_hosts_object[tabId];
+                return blocked_hosts_object;
+            });
     }
 }
 
@@ -167,13 +157,11 @@ async function onMessage(message, sender) {
     return;
   }
 
-  const notificationsAllowed = await getItemFromLocal("notificationsAllowed", true);
   switch(message.type) {
     case 'popupInit':
-      const state = await getItemFromLocal("state", true);
       return {
-        isListening: state,
-        notificationsAllowed,
+        isListening: await isListening(),
+        notificationsAllowed: await getItemFromLocal("notificationsAllowed", true),
       };
     case 'toggleEnabled':
       message.value ? await start() : await stop();
