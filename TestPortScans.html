@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head>
 </head>
@@ -153,22 +154,21 @@ padding-bottom: 20px; width: 500px; margin: auto; text-align: center;padding-top
 
     function custom_scan()
     {
-        var ips = {"127.0.0.1": 80, "127.0.0.1": 8081, "localhost": 8080, "LoCALhOst": 443, "10.0.0.1": 455, "10.255.22.33": 80, "192.168.1.1": 443, "192.168.1.255":6463, "172.17.100.155": 4444,  "172.31.255.255": 8081, "172.031.33.33": 445, "169.254.1.0": 547, "169.254.1.0": 21, "169.254.1.0": 194};
-        var scripts = {"fp.disney.go.com": 443, "h.chase.co.uk": 443, "analytics.vacations.united.com": 443, "tmx.bestbuy.com": 443, "thm12.visa.com": 443, "tmetrix.my.chick-fil-a.com": 443, "cfa.fidelity.com": 443, "content22.citibank.com": 443, "deviceauth.dmv.ca.gov": 443, "dfp.t-mobile.at": 443, "src.ebay-us.com": 443, "fp.disney.go.com": 443, "fp.ups.com": 443};
+        const ips = [{"127.0.0.1": 80}, {"127.0.0.1": 65535}, {"0.0.0.0": 80}, {"localhost": 8080}, {"localhost": 8081}, {"localhost": 8082}, {"localhost": 8083}, {"localhost": 8084}, {"localhost": 8085}, {"LoCALhOst": 443}, {"10.0.0.1": 455}, {"10.255.22.33": 80}, {"192.168.1.1": 443}, {"192.168.1.255":6463}, {"172.17.100.155": 4444}, {"172.31.255.255": 8081}, {"172.031.33.33": 445}, {"169.254.1.0": 547}, {"169.254.1.0": 21}, {"169.254.1.0": 194}];
+        const scripts = [{"fp.disney.go.com": 443}, {"h.chase.co.uk": 443}, {"analytics.vacations.united.com": 443}, {"tmx.bestbuy.com": 443}, {"thm12.visa.com": 443}, {"tmetrix.my.chick-fil-a.com": 443}, {"cfa.fidelity.com": 443}, {"content22.citibank.com": 443}, {"deviceauth.dmv.ca.gov": 443}, {"dfp.t-mobile.at": 443}, {"src.ebay-us.com": 443}, {"fp.disney.go.com": 443}, {"fp.ups.com": 443}];
 
         document.getElementById("custom_button").disabled = true;
         document.getElementById("requestsmade").style.visibility="visible";
 
-        var res_div = document.getElementById("results");
-        res_div.innerHTML = "";
+        const res_div = document.getElementById("results");
+        res_div.innerText = "";
 
-        for(var ip in ips){
-            var port = ips[ip];
-            port = parseInt(port);
+        for(const item of ips){
+            const [ip, port] = Object.entries(item)[0];
             if (isNaN(port) || port <= 0 || port > 65535) {
                 alert("Bad port number");
             }
-            var scanner = new PortScanner(ip, port);
+            const scanner = new PortScanner(ip, port);
 
             scanner.runHTTP();
             scanner.runHTTPS();
@@ -176,13 +176,12 @@ padding-bottom: 20px; width: 500px; margin: auto; text-align: center;padding-top
             scanner.wss();
         }
 
-        for(var host in scripts){
-            var port = scripts[host];
-            port = parseInt(port);
+        for(const item of scripts){
+            const [host, port] = Object.entries(item)[0];
             if (isNaN(port) || port < 0 || port > 65535) {
                 alert("Bad port number");
             }
-            var scanner = new PortScanner(host, port);
+            const scanner = new PortScanner(host, port);
 
             scanner.runHTTPS();
         }
