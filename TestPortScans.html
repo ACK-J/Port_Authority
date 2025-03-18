@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All in One Port-Scan Test</title>
     <style>
-        #main_content {
+        main {
             border: solid black 5px;
             border-radius: 10px;
             background-color: #da5a5a;
@@ -17,6 +17,7 @@
             text-align: center;
             padding-top: 10px;
             color: white;
+            font-weight: bold;
         }
 
         #custom_button {
@@ -27,42 +28,26 @@
     </style>
 </head>
 <body>
-    <div id="main_content">
+    <main>
+        <h1>All in One Port-Scan Test</h1>
 
-        <p>
-            <strong style="font-size: 30px;">All in One Port-Scan Test</strong>
-        </p>
-
-        <input type="button"id="custom_button" value="Port Scan My Internal Network!" onclick="custom_scan();" />
+        <button id="custom_button" onclick="custom_scan();">Port Scan My Internal Network!</button>
         
-        <div>
-            <br>
-            <p>
-                <strong>
-                    By clicking the button above, you understand that this is a portscanning test that happens inside your browser and is specifically built to test all the possible ways a site can port scan you in one easy location. 
-                    It will also try to reach out to specific domains that are known for distributing privacy-invasive scripts but will not attempt to download these scripts. NO DATA WILL EVER BE LOGGED OR SENT TO ME!
-                    <br>   
-                    <div>
-                        <a href="https://addons.mozilla.org/en-US/firefox/addon/port-authority/">
-                            <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px" />
-                        </a>
-                    </div> 
-                    <br>
-                    If you download the Port Authority add-on, your browser will block all malicious port scans and scripts.
-                </strong>        
-            </p>
-        </div>
-            <p style="font-weight: bold;visibility: hidden;font-size: 26px;" id="requestsmade">
-                <strong>
-                    Requests Made
-                </strong>
-            </p>
-        <div>
-            <div id="results" style="padding-top: 10px; font-weight: bold;"></div>
-        </div>
-
-    </div>
-
+        <p>
+            By clicking the button above, you understand that this is a portscanning test that happens inside your browser and is specifically built to test all the possible ways a site can port scan you in one easy location. 
+            It will also try to reach out to specific domains that are known for distributing privacy-invasive scripts but will not attempt to download these scripts. NO DATA WILL EVER BE LOGGED OR SENT TO ME!
+        </p>
+        <a href="https://addons.mozilla.org/en-US/firefox/addon/port-authority/">
+            <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px" />
+        </a>
+        <p>
+            If you download the Port Authority add-on, your browser will block all malicious port scans and scripts.
+        </p>
+        <h2 id="requestsmade" style="visibility: hidden;">
+            Requests Made
+        </h2>
+        <div id="results" style="padding-top: 10px; font-weight: bold;"></div>
+    </main>
 
     <div id="testdiv" style="visibility: hidden"></div>
 
