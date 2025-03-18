@@ -4,16 +4,35 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All in One Port-Scan Test</title>
+    <style>
+        #main_content {
+            border: solid black 5px;
+            border-radius: 10px;
+            background-color: #da5a5a;
+            padding-left: 20px;
+            padding-right: 20px;
+            padding-bottom: 20px;
+            width: 500px;
+            margin: auto;
+            text-align: center;
+            padding-top: 10px;
+        }
+
+        #custom_button {
+            font-size: 18px;
+            padding: 6px;
+            background-color: #e7e7e7;
+        }
+    </style>
 </head>
 <body>
-    <div style="border: solid black 5px; border-radius: 10px; background-color: #da5a5a; padding-left: 20px; padding-right: 20px;
-    padding-bottom: 20px; width: 500px; margin: auto; text-align: center;padding-top: 10px;">
+    <div id="main_content">
 
         <p>
             <strong style="color: white; font-size: 30px;">All in One Port-Scan Test</strong>
         </p>
 
-        <input type="button" style="font-size: 18px; padding: 6px; background-color: #e7e7e7;" id="custom_button" value="Port Scan My Internal Network!" onclick="custom_scan();" />
+        <input type="button"id="custom_button" value="Port Scan My Internal Network!" onclick="custom_scan();" />
         
         <div style="color: white;">
             <br>
