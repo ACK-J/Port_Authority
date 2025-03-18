@@ -44,7 +44,7 @@
         <p>
             If you download the Port Authority add-on, your browser will block all malicious port scans and scripts.
         </p>
-        <h2 id="requestsmade" style="visibility: hidden;">
+        <h2 id="requestsmade" hidden>
             Requests Made
         </h2>
         <div id="results" style="padding-top: 10px; font-weight: bold;"></div>
@@ -53,13 +53,20 @@
     <div id="testdiv" hidden></div>
 
     <script>
+        /* DOM nodes */
+        const trigger_portscan_button = document.getElementById("custom_button");
+        const res_div = document.getElementById("results");
+        const test_div = document.getElementById("testdiv");
 
         /* The scanner needs these global variables for an ugly hack. */
         var last_scanobj_index = 0;
         var scanobjs = {};
         function PortScanner(ip, port)
         {
-            
+            // Verify port format
+            if (isNaN(port) || port <= 0 || port > 65535) {
+                alert("Bad port number");
+            }
             this.ip = ip;
             this.port = port;
             this.total_time = null;
@@ -73,10 +80,8 @@
 
                 /* Create the div to load the image, passing our object's index into
                     the global directory so that it can be retrieved. */
-                document.getElementById("testdiv").innerHTML = '<img src="http://' + ip + ':' + port + 
+                test_div.innerHTML = '<img src="http://' + ip + ':' + port + 
                     '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
-
-                var res_div = document.getElementById("results");
                 res_div.innerHTML += "http://" + ip + ":" + port + "<br />";
 
                 // XXX: What's the right way to do this in JS?
@@ -101,11 +106,9 @@
 
                 /* Create the div to load the image, passing our object's index into
                     the global directory so that it can be retrieved. */
-                document.getElementById("testdiv").innerHTML = '<img src="https://' + ip + ':' + port + 
+                test_div.innerHTML = '<img src="https://' + ip + ':' + port + 
                     '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
 
-
-                var res_div = document.getElementById("results");
                 res_div.innerHTML += "https://" + ip + ":" + port + "<br />";
 
                 // XXX: What's the right way to do this in JS?
@@ -124,7 +127,6 @@
             this.ws = function() {
             return new Promise((resolve, reject) => {
                 var ws = new WebSocket("ws://" + ip +":" + port + '/')
-                var res_div = document.getElementById("results");
                 res_div.innerHTML += "ws://" + ip + ":" + port + "<br />";
                 ws.onerror = function() {
                 // close the socket before we return
@@ -136,7 +138,6 @@
             this.wss = function() {
             return new Promise((resolve, reject) => {
                 var ws = new WebSocket("wss://" + ip +":" + port + '/')
-                var res_div = document.getElementById("results");
                 res_div.innerHTML += "wss://" + ip + ":" + port + "<br />";
                 ws.onerror = function() {
                 // close the socket before we return
@@ -166,17 +167,13 @@
             const ips = [{"127.0.0.1": 80}, {"127.0.0.1": 65535}, {"0.0.0.0": 80}, {"localhost": 8080}, {"localhost": 8081}, {"localhost": 8082}, {"localhost": 8083}, {"localhost": 8084}, {"localhost": 8085}, {"LoCALhOst": 443}, {"10.0.0.1": 455}, {"10.255.22.33": 80}, {"192.168.1.1": 443}, {"192.168.1.255":6463}, {"172.17.100.155": 4444}, {"172.31.255.255": 8081}, {"172.031.33.33": 445}, {"169.254.1.0": 547}, {"169.254.1.0": 21}, {"169.254.1.0": 194}];
             const scripts = [{"fp.disney.go.com": 443}, {"h.chase.co.uk": 443}, {"analytics.vacations.united.com": 443}, {"tmx.bestbuy.com": 443}, {"thm12.visa.com": 443}, {"tmetrix.my.chick-fil-a.com": 443}, {"cfa.fidelity.com": 443}, {"content22.citibank.com": 443}, {"deviceauth.dmv.ca.gov": 443}, {"dfp.t-mobile.at": 443}, {"src.ebay-us.com": 443}, {"fp.disney.go.com": 443}, {"fp.ups.com": 443}];
 
-            document.getElementById("custom_button").disabled = true;
-            document.getElementById("requestsmade").style.visibility="visible";
+            trigger_portscan_button.disabled = true;
+            document.getElementById("requestsmade").hidden = false;
 
-            const res_div = document.getElementById("results");
             res_div.innerText = "";
 
             for(const item of ips){
                 const [ip, port] = Object.entries(item)[0];
-                if (isNaN(port) || port <= 0 || port > 65535) {
-                    alert("Bad port number");
-                }
                 const scanner = new PortScanner(ip, port);
 
                 scanner.runHTTP();
@@ -187,14 +184,11 @@
 
             for(const item of scripts){
                 const [host, port] = Object.entries(item)[0];
-                if (isNaN(port) || port < 0 || port > 65535) {
-                    alert("Bad port number");
-                }
                 const scanner = new PortScanner(host, port);
 
                 scanner.runHTTPS();
             }
-            document.getElementById("custom_button").disabled = false;
+            trigger_portscan_button.disabled = false;
         }
     </script>
 </body>
