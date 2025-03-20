@@ -35,7 +35,7 @@ async function cancel(requestDetails) {
                 console.warn("`requestDetails.thirdParty` and our check of origins disagree:", {origin, request, thirdParty: requestDetails.thirdParty});
             }
         } catch(error) {
-            console.error("Error parsing request `originUrl` or `url`:", requestDetails);
+            console.error("Error parsing request `originUrl` or `url`:", requestDetails, error);
         }
     }
 
@@ -44,8 +44,8 @@ async function cancel(requestDetails) {
     let check_allowed_url;
     try {
         check_allowed_url = new URL(requestDetails.originUrl);
-    } catch {
-        console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
+    } catch(error) {
+        console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl, error);
         return { cancel: false }; // invalid origin
     }
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
@@ -59,8 +59,12 @@ async function cancel(requestDetails) {
     }
 
     // Used in both local and threatmetrix checks
-    // TODO wrap in try-catch
-    const url = new URL(requestDetails.url);
+    let url;
+    try {
+        url = new URL(requestDetails.url);
+    } catch(error) {
+        console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url, error);
+    }
 
 
     // Local request check
