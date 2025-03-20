@@ -16,12 +16,30 @@ async function startup(){
 }
 
 async function cancel(requestDetails) {
-    // First check the whitelist
+    // First check if it's a same-origin request
+    if(!requestDetails.thirdParty) {
+        try {
+            const origin = new URL(requestDetails.originUrl);
+            const request = new URL(requestDetails.url);
+
+            // Also want to run our own check, for paranoia's sake
+            if(origin.origin === request.origin) {
+                console.log("Same-origin/first-party request allowed:", {origin, request, thirdParty: requestDetails.thirdParty});
+                return { cancel: false };
+            } else {
+                console.warn("`requestDetails.thirdParty` and our check of origins disagree:", {origin, request, thirdParty: requestDetails.thirdParty});
+            }
+        } catch(error) {
+            console.error("Error parsing request `originUrl` or `url`:", requestDetails);
+        }
+    } 
+
+    // First check the allowlist
     let check_allowed_url;
     try {
         check_allowed_url = new URL(requestDetails.originUrl);
     } catch {
-        console.error("Aborted filtering on domain due to unparseable domain: ", requestDetails.originUrl);
+        console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
         return { cancel: false }; // invalid origin
     }
 
@@ -41,12 +59,13 @@ async function cancel(requestDetails) {
     let thm = new RegExp("online-metrix[.]net$", "i");
 
     // This reduces having to check this conditional multiple times
-    let is_requested_local = local_filter.test(requestDetails.url);
+    const is_requested_local = local_filter.test(requestDetails.url);
+    // TODO wrap in try-catch
+    const url = new URL(requestDetails.url);
     // Make sure we are not searching the CNAME of local addresses
     if (!is_requested_local) {
-        let url = new URL(requestDetails.url);
         // Send a request to get the CNAME of the webrequest
-        let resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
+        const resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
         // If the CNAME redirects to a online-metrix.net domain -> Block
         if (thm.test(resolving.canonicalName)) {
             console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
@@ -54,19 +73,14 @@ async function cancel(requestDetails) {
             addBlockedTrackingHost(url, requestDetails.tabId);
             return { cancel: true };
         }
+    } else { // `is_requested_local` === true
+        // The network request is going to a local address and has already failed a same-origin check, block it
+        console.debug("Blocking domain for portscanning: ", url);
+        increaseBadge(requestDetails, false); // increment badge and alert
+        addBlockedPortToHost(url, requestDetails.tabId);
+        return { cancel: true };
     }
-
-    // Check if the network request is going to a local address
-    if (is_requested_local) {
-        // If URL in the address bar is a local address dont block the request
-        if (!local_filter.test(requestDetails.originUrl)) {
-            let url = new URL(requestDetails.url);
-            console.debug("Blocking domain for portscanning: ", url);
-            increaseBadge(requestDetails, false); // increment badge and alert
-            addBlockedPortToHost(url, requestDetails.tabId);
-            return { cancel: true };
-        }
-    }
+    
     // Dont block sites that don't alert the detection
     return { cancel: false };
 } // end cancel()
