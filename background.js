@@ -32,9 +32,9 @@ async function cancel(requestDetails) {
         } catch(error) {
             console.error("Error parsing request `originUrl` or `url`:", requestDetails);
         }
-    } 
+    }
 
-    // First check the allowlist
+    // Then check the allowlist
     let check_allowed_url;
     try {
         check_allowed_url = new URL(requestDetails.originUrl);
@@ -62,22 +62,23 @@ async function cancel(requestDetails) {
     const is_requested_local = local_filter.test(requestDetails.url);
     // TODO wrap in try-catch
     const url = new URL(requestDetails.url);
-    // Make sure we are not searching the CNAME of local addresses
-    if (!is_requested_local) {
-        // Send a request to get the CNAME of the webrequest
-        const resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
-        // If the CNAME redirects to a online-metrix.net domain -> Block
-        if (thm.test(resolving.canonicalName)) {
-            console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
-            increaseBadge(requestDetails, true); // increment badge and alert
-            addBlockedTrackingHost(url, requestDetails.tabId);
-            return { cancel: true };
-        }
-    } else { // `is_requested_local` === true
+
+    if (is_requested_local) {
         // The network request is going to a local address and has already failed a same-origin check, block it
         console.debug("Blocking domain for portscanning: ", url);
         increaseBadge(requestDetails, false); // increment badge and alert
         addBlockedPortToHost(url, requestDetails.tabId);
+        return { cancel: true };
+    }
+
+    // The early return in the if case above makes sure we are not searching the CNAME of local addresses
+    // Send a request to get the CNAME of the webrequest
+    const resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
+    // If the CNAME redirects to a online-metrix.net domain -> Block
+    if (thm.test(resolving.canonicalName)) {
+        console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
+        increaseBadge(requestDetails, true); // increment badge and alert
+        addBlockedTrackingHost(url, requestDetails.tabId);
         return { cancel: true };
     }
     
