@@ -15,16 +15,39 @@ async function startup(){
 	}
 }
 
+// This regex is explained here https://regex101.com/r/LSL180/1 below I needed to change \b -> \\b
+const local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/0.0.0.0|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(?:\/([789]|1?[0-9]{2}))?\\b", "i");
+// Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
+const thm = new RegExp("online-metrix[.]net$", "i");
+
 async function cancel(requestDetails) {
-    // First check the whitelist
+    // First check if it's a same-origin request
+    if(!requestDetails.thirdParty) {
+        try {
+            const origin = new URL(requestDetails.originUrl);
+            const request = new URL(requestDetails.url);
+
+            // Also want to run our own check, for paranoia's sake
+            if(origin.origin === request.origin) {
+                console.log("Same-origin/first-party request allowed:", {origin, request, thirdParty: requestDetails.thirdParty});
+                return { cancel: false };
+            } else {
+                console.warn("`requestDetails.thirdParty` and our check of origins disagree:", {origin, request, thirdParty: requestDetails.thirdParty});
+            }
+        } catch(error) {
+            console.error("Error parsing request `originUrl` or `url`:", requestDetails, error);
+        }
+    }
+
+
+    // Then check the allowlist
     let check_allowed_url;
     try {
         check_allowed_url = new URL(requestDetails.originUrl);
-    } catch {
-        console.error("Aborted filtering on domain due to unparseable domain: ", requestDetails.originUrl);
+    } catch(error) {
+        console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl, error);
         return { cancel: false }; // invalid origin
     }
-
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
     // Perform an exact match against the whitelisted domains (dont assume subdomains are allowed)
     const domainIsWhiteListed = allowed_domains_list.some(
@@ -35,38 +58,35 @@ async function cancel(requestDetails) {
         return { cancel: false };
     }
 
-    // This regex is explained here https://regex101.com/r/LSL180/1 below I needed to change \b -> \\b
-    let local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/0.0.0.0|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(?:\/([789]|1?[0-9]{2}))?\\b", "i");
-    // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
-    let thm = new RegExp("online-metrix[.]net$", "i");
-
-    // This reduces having to check this conditional multiple times
-    let is_requested_local = local_filter.test(requestDetails.url);
-    // Make sure we are not searching the CNAME of local addresses
-    if (!is_requested_local) {
-        let url = new URL(requestDetails.url);
-        // Send a request to get the CNAME of the webrequest
-        let resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
-        // If the CNAME redirects to a online-metrix.net domain -> Block
-        if (thm.test(resolving.canonicalName)) {
-            console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
-            increaseBadge(requestDetails, true); // increment badge and alert
-            addBlockedTrackingHost(url, requestDetails.tabId);
-            return { cancel: true };
-        }
+    // Used in both local and threatmetrix checks
+    let url;
+    try {
+        url = new URL(requestDetails.url);
+    } catch(error) {
+        console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url, error);
     }
 
-    // Check if the network request is going to a local address
-    if (is_requested_local) {
-        // If URL in the address bar is a local address dont block the request
-        if (!local_filter.test(requestDetails.originUrl)) {
-            let url = new URL(requestDetails.url);
-            console.debug("Blocking domain for portscanning: ", url);
-            increaseBadge(requestDetails, false); // increment badge and alert
-            addBlockedPortToHost(url, requestDetails.tabId);
-            return { cancel: true };
-        }
+
+    // Local request check
+    if (local_filter.test(requestDetails.url)) {
+        // The network request is going to a local address and has already failed a same-origin check, block it
+        console.debug("Blocking domain for portscanning: ", url);
+        increaseBadge(requestDetails, false); // increment badge and alert
+        addBlockedPortToHost(url, requestDetails.tabId);
+        return { cancel: true };
     }
+
+    // The early return in the if case above makes sure we are not searching the CNAME of local addresses
+    // Send a request to get the CNAME of the webrequest
+    const resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
+    // If the CNAME redirects to a online-metrix.net domain -> Block
+    if (thm.test(resolving.canonicalName)) {
+        console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
+        increaseBadge(requestDetails, true); // increment badge and alert
+        addBlockedTrackingHost(url, requestDetails.tabId);
+        return { cancel: true };
+    }
+    
     // Dont block sites that don't alert the detection
     return { cancel: false };
 } // end cancel()
