@@ -123,7 +123,7 @@
     <section>
         <header><h1>All-in-One Port Scan Test</h1></header>
         <main>
-            <button id="custom_button" onclick="custom_scan();">Port Scan My Internal Network!</button>
+            <button id="custom_button">Port Scan My Internal Network!</button>
             <p>
                 The button above will run a port-scan of your local network. It works by triggering HTTP <code>GET</code> requests via
                 a hidden image's <code>src</code> attribute. The port-scan results will <em>never</em> be uploaded to remote servers and will
@@ -151,8 +151,13 @@
     <script>
         /* DOM nodes */
         const trigger_portscan_button = document.getElementById("custom_button");
+        const results_label = document.getElementById("results-label");
         const results_container = document.getElementById("results");
         const test_div = document.getElementById("testdiv");
+
+        /* DOM functionality binding */
+        trigger_portscan_button.addEventListener("click", custom_scan);
+        const log_portscan = (url) => results_container.append(url + "\n");
 
         /* The scanner needs these global variables for an ugly hack. */
         var last_scanobj_index = 0;
@@ -178,7 +183,7 @@
                     the global directory so that it can be retrieved. */
                 test_div.innerHTML = '<img src="http://' + host + 
                     '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
-                results_container.innerHTML += "http://" + host + "<br />";
+                log_portscan("http://" + host);
 
                 // XXX: What's the right way to do this in JS?
                 var thiss = this;
@@ -205,7 +210,7 @@
                 test_div.innerHTML = '<img src="https://' + host + 
                     '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
 
-                results_container.innerHTML += "https://" + host + "<br />";
+                log_portscan("https://" + host);
 
                 // XXX: What's the right way to do this in JS?
                 var thiss = this;
@@ -223,7 +228,7 @@
             this.ws = function() {
             return new Promise((resolve, reject) => {
                 var ws = new WebSocket("ws://" + host + '/')
-                results_container.innerHTML += "ws://" + host + "<br />";
+                log_portscan("ws://" + host);
                 ws.onerror = function() {
                 // close the socket before we return
                 ws.close()
@@ -234,7 +239,7 @@
             this.wss = function() {
             return new Promise((resolve, reject) => {
                 var ws = new WebSocket("wss://" + host + '/')
-                results_container.innerHTML += "wss://" + host + "<br />";
+                log_portscan("wss://" + host);
                 ws.onerror = function() {
                 // close the socket before we return
                 ws.close()
@@ -266,7 +271,7 @@
             trigger_portscan_button.disabled = true;
             trigger_portscan_button.blur();
 
-            document.getElementById("results-label").hidden = false;
+            results_label.hidden = false;
             results_container.hidden = false;
             results_container.innerText = "";
 
