@@ -1,194 +1,298 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-</head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>All in One Port-Scan Test</title>
+    <style>
+        /* Color variables copied from Port Authority */
+        :root {
+            --light: #ffffff;
+            --dark: #23222B;
+            --background: var(--light);
+            --foreground: var(--dark);
+            --red: #800000;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                /* Colors selected to match the settings page's wrapper container styles */
+                --light: #BFBFC9;
+                --dark: #23222B;
+                --background: var(--dark);
+                --foreground: var(--light);
+                --red: #B20000; /* Slightly brighter for better contrast against `--background` */
+            }
+        }
+        body {
+            background-color: color-mix(in oklab, var(--background) 95%, var(--foreground));
+            color: var(--foreground);
 
-<div style="border: solid black 5px; border-radius: 10px; background-color: #da5a5a; padding-left: 20px; padding-right: 20px;
-padding-bottom: 20px; width: 500px; margin: auto; text-align: center;padding-top: 10px;">
+            font-family: system-ui, sans-serif;
+            line-height: 1.5;
 
-    <p>
-        <strong style="color: white; font-size: 30px;">All in One Port-Scan Test</strong>
-    </p>
+            box-sizing: border-box;
+            margin: 0;
+            min-height: 100vh;
+            padding: 2vw 2vw;
 
-    <input type="button" style="font-size: 18px; padding: 6px; background-color: #e7e7e7;" id="custom_button" value="Port Scan My Internal Network!" onclick="custom_scan();" />
-     
-    <div style="color: white;">
-        <br>
-        <p>
-            <strong>
-                By clicking the button above, you understand that this is a portscanning test that happens inside your browser and is specifically built to test all the possible ways a site can port scan you in one easy location. 
-                It will also try to reach out to specific domains that are known for distributing privacy-invasive scripts but will not attempt to download these scripts. NO DATA WILL EVER BE LOGGED OR SENT TO ME!
-                <br>   
-                <div>
-                    <a href="https://addons.mozilla.org/en-US/firefox/addon/port-authority/">
-                        <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="for Firefox" height="60px" />
-                    </a>
-                </div> 
-                <br>
-                If you download the Port Authority add-on, your browser will block all malicious port scans and scripts.
-            </strong>        
-        </p>
-    </div>
-        <p style="color: white;font-weight: bold;visibility: hidden;font-size: 26px;" id="requestsmade">
-            <strong>
-                Requests Made
-            </strong>
-        </p>
-    <div>
-        <div id="results" style="padding-top: 10px; color: white;font-weight: bold;"></div>
-    </div>
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        section {
+            max-width: 80ch;
 
-</div>
+            background-color: var(--background);
+            border: 2px solid color-mix(in oklab, var(--background) 90%, var(--foreground));
 
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        header {
+            background-color: var(--red);
+            color: var(--background);
 
-<div id="testdiv" style="visibility: hidden"></div>
+            padding: 2em 2ch;
+            text-align: center;
 
-<script>
+            h1 {
+                font-size: 2rem;
+                margin: 0;
+            }
+        }
+        main {
+            padding: 2ch;
+            padding-top: 0;
+            overflow: auto;
+        }
 
-    /* The scanner needs these global variables for an ugly hack. */
-    var last_scanobj_index = 0;
-    var scanobjs = {};
-    function PortScanner(ip, port)
-    {
+        #custom_button {
+            display: block;
+            margin: 2em auto;
+            padding: 0.5em 2ch;
+            font-size: 1.1em;
+
+            border: none;
+            outline: 5px solid var(--red);
+            border-radius: 50rem;
+
+            background-color: color-mix(in oklab, var(--background) 95%, var(--foreground));
+            color: var(--red);
+
+            cursor: pointer;
+
+            transition: outline .2s,
+                        color .4s;
+        }
+        #custom_button[disabled] {
+            cursor: wait;
+        }
+        #custom_button:not([disabled]):is(:hover, :active, :focus) {
+            outline: 8px solid oklch(from var(--red) calc(l + 0.1) c h);
+            color: var(--foreground);
+        }
         
-        this.ip = ip;
-        this.port = port;
-        this.total_time = null;
-
-        this.runHTTP = function () {
-
-            /* Save this object in the global directory (UGLY HACK). */
-            var our_scanobj_index = last_scanobj_index;
-            last_scanobj_index++;
-            scanobjs[our_scanobj_index] = this;
-
-            /* Create the div to load the image, passing our object's index into
-                the global directory so that it can be retrieved. */
-            document.getElementById("testdiv").innerHTML = '<img src="http://' + ip + ':' + port + 
-                '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
-
-            var res_div = document.getElementById("results");
-            res_div.innerHTML += "http://" + ip + ":" + port + "<br />";
-
-            // XXX: What's the right way to do this in JS?
-            var thiss = this;
-            setTimeout(
-                function () {
-                    /* This will be non-null if the event hasn't fired yet. */
-                    if (scanobjs[our_scanobj_index]) {
-                        scanobjs[our_scanobj_index] = null;
-                    }
-                },
-                10000
-            );
+        #plugin-button {
+            display: block;
+            width: fit-content;
+            margin: 0 auto;
         }
 
-        this.runHTTPS = function () {
-
-            /* Save this object in the global directory (UGLY HACK). */
-            var our_scanobj_index = last_scanobj_index;
-            last_scanobj_index++;
-            scanobjs[our_scanobj_index] = this;
-
-            /* Create the div to load the image, passing our object's index into
-                the global directory so that it can be retrieved. */
-            document.getElementById("testdiv").innerHTML = '<img src="https://' + ip + ':' + port + 
-                '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
-
-
-            var res_div = document.getElementById("results");
-            res_div.innerHTML += "https://" + ip + ":" + port + "<br />";
-
-            // XXX: What's the right way to do this in JS?
-            var thiss = this;
-            setTimeout(
-                function () {
-                    /* This will be non-null if the event hasn't fired yet. */
-                    if (scanobjs[our_scanobj_index]) {
-                        scanobjs[our_scanobj_index] = null;
-                    }
-                },
-                10000
-            );
+        code, pre {
+            font-family: ui-monospace, monospace;
+            background-color: color-mix(in oklab, var(--background) 92%, var(--foreground));
+            border: 1px solid color-mix(in oklab, var(--background) 85%, var(--foreground));
+            border-radius: 5px;
+            padding: 0 0.5ch;
         }
-
-        this.ws = function() {
-        return new Promise((resolve, reject) => {
-            var ws = new WebSocket("ws://" + ip +":" + port + '/')
-            var res_div = document.getElementById("results");
-            res_div.innerHTML += "ws://" + ip + ":" + port + "<br />";
-            ws.onerror = function() {
-            // close the socket before we return
-            ws.close()
-            }
-        })
+        pre {
+            padding: 0.6em 2ch;
+            margin: 0;
         }
-
-        this.wss = function() {
-        return new Promise((resolve, reject) => {
-            var ws = new WebSocket("wss://" + ip +":" + port + '/')
-            var res_div = document.getElementById("results");
-            res_div.innerHTML += "wss://" + ip + ":" + port + "<br />";
-            ws.onerror = function() {
-            // close the socket before we return
-            ws.close()
-            }
-        })
+        a {
+            color: oklch(from var(--red) calc(l + 0.2) c h);
+            text-decoration: underline oklch(from var(--red) calc(l + 0.2) c h) 2px;
         }
-    }
-
-
-
-    function error_handler(index)
-    {
-        /* Get the PortScanner object back. */
-        var thiss = scanobjs[index];
-
-        /* If it's null, the scan timed out. */
-        if (thiss == null) {
-            return;
+        a:is(:hover, :focus) {
+            color: var(--red);
+            text-decoration-color: var(--red);
         }
-        /* Set it to null so the timeout knows we handled it. */
-        scanobjs[index] = null;
-    }
+    </style>
+</head>
+<body>
+    <section>
+        <header><h1>All-in-One Port Scan Test</h1></header>
+        <main>
+            <button id="custom_button">Port Scan My Internal Network!</button>
+            <p>
+                The button above will run a port-scan of your local network. It works by triggering HTTP <code>GET</code> requests via
+                a hidden image's <code>src</code> attribute. The port-scan results will <em>never</em> be uploaded to remote servers and will
+                never leave your computer. You can verify this and fully monitor the scan from the <a href="https://firefox-source-docs.mozilla.org/devtools-user/network_monitor/index.html" target="_blank">DevTools Network tab</a>,
+                or check on the list of the local domains scanned below.
+            </p>
+            <p>
+                To protect against private network port-scans like these there are several options:
+                the <a href="https://addons.mozilla.org/firefox/addon/port-authority/">Port Authority browser addon</a> is designed specifically to block private network port-scans.
+                Alternatively, <a href="https://addons.mozilla.org/firefox/addon/ublock-origin/" target="_blank">uBlock Origin</a> users
+                can add the <a href="https://github.com/gorhill/uBlock/wiki/Dashboard:-Filter-lists#block-outsider-intrusion-into-lan" target="_blank">"Block Outsider Intrusion into LAN"</a> filter list.
+            </p>
+            <a id="plugin-button" href="https://addons.mozilla.org/firefox/addon/port-authority/">
+                <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Port Authority addon for Firefox" height="60px">
+            </a>
+            <h2 id="results-label" hidden>
+                Requests Made:
+            </h2>
+            <pre id="results" hidden></pre>
+        </main>
 
-    function custom_scan()
-    {
-        var ips = {"127.0.0.1": 80, "127.0.0.1": 8081, "localhost": 8080, "LoCALhOst": 443, "10.0.0.1": 455, "10.255.22.33": 80, "192.168.1.1": 443, "192.168.1.255":6463, "172.17.100.155": 4444,  "172.31.255.255": 8081, "172.031.33.33": 445, "169.254.1.0": 547, "169.254.1.0": 21, "169.254.1.0": 194};
-        var scripts = {"fp.disney.go.com": 443, "h.chase.co.uk": 443, "analytics.vacations.united.com": 443, "tmx.bestbuy.com": 443, "thm12.visa.com": 443, "tmetrix.my.chick-fil-a.com": 443, "cfa.fidelity.com": 443, "content22.citibank.com": 443, "deviceauth.dmv.ca.gov": 443, "dfp.t-mobile.at": 443, "src.ebay-us.com": 443, "fp.disney.go.com": 443, "fp.ups.com": 443};
+        <div id="testdiv" hidden></div>
+    </section>
 
-        document.getElementById("custom_button").disabled = true;
-        document.getElementById("requestsmade").style.visibility="visible";
+    <script>
+        /* DOM nodes */
+        const trigger_portscan_button = document.getElementById("custom_button");
+        const results_label = document.getElementById("results-label");
+        const results_container = document.getElementById("results");
+        const test_div = document.getElementById("testdiv");
 
-        var res_div = document.getElementById("results");
-        res_div.innerHTML = "";
+        /* DOM functionality binding */
+        trigger_portscan_button.addEventListener("click", custom_scan);
+        const log_portscan = (url) => results_container.append(url + "\n");
 
-        for(var ip in ips){
-            var port = ips[ip];
-            port = parseInt(port);
+        /* The scanner needs these global variables for an ugly hack. */
+        var last_scanobj_index = 0;
+        var scanobjs = {};
+        function PortScanner(ip, port)
+        {
+            // Verify port format
             if (isNaN(port) || port <= 0 || port > 65535) {
                 alert("Bad port number");
             }
-            var scanner = new PortScanner(ip, port);
+            const host = ip + ":" + port;
+            this.host = host;
+            this.total_time = null;
 
-            scanner.runHTTP();
-            scanner.runHTTPS();
-            scanner.ws();
-            scanner.wss();
-        }
+            this.runHTTP = function () {
 
-        for(var host in scripts){
-            var port = scripts[host];
-            port = parseInt(port);
-            if (isNaN(port) || port < 0 || port > 65535) {
-                alert("Bad port number");
+                /* Save this object in the global directory (UGLY HACK). */
+                var our_scanobj_index = last_scanobj_index;
+                last_scanobj_index++;
+                scanobjs[our_scanobj_index] = this;
+
+                /* Create the div to load the image, passing our object's index into
+                    the global directory so that it can be retrieved. */
+                test_div.innerHTML = '<img src="http://' + host + 
+                    '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
+                log_portscan("http://" + host);
+
+                // XXX: What's the right way to do this in JS?
+                var thiss = this;
+                setTimeout(
+                    function () {
+                        /* This will be non-null if the event hasn't fired yet. */
+                        if (scanobjs[our_scanobj_index]) {
+                            scanobjs[our_scanobj_index] = null;
+                        }
+                    },
+                    10000
+                );
             }
-            var scanner = new PortScanner(host, port);
 
-            scanner.runHTTPS();
+            this.runHTTPS = function () {
+
+                /* Save this object in the global directory (UGLY HACK). */
+                var our_scanobj_index = last_scanobj_index;
+                last_scanobj_index++;
+                scanobjs[our_scanobj_index] = this;
+
+                /* Create the div to load the image, passing our object's index into
+                    the global directory so that it can be retrieved. */
+                test_div.innerHTML = '<img src="https://' + host + 
+                    '" alt="" onerror="error_handler(' + our_scanobj_index + ');" />';
+
+                log_portscan("https://" + host);
+
+                // XXX: What's the right way to do this in JS?
+                var thiss = this;
+                setTimeout(
+                    function () {
+                        /* This will be non-null if the event hasn't fired yet. */
+                        if (scanobjs[our_scanobj_index]) {
+                            scanobjs[our_scanobj_index] = null;
+                        }
+                    },
+                    10000
+                );
+            }
+
+            this.ws = function() {
+            return new Promise((resolve, reject) => {
+                var ws = new WebSocket("ws://" + host + '/')
+                log_portscan("ws://" + host);
+                ws.onerror = function() {
+                // close the socket before we return
+                ws.close()
+                }
+            })
+            }
+
+            this.wss = function() {
+            return new Promise((resolve, reject) => {
+                var ws = new WebSocket("wss://" + host + '/')
+                log_portscan("wss://" + host);
+                ws.onerror = function() {
+                // close the socket before we return
+                ws.close()
+                }
+            })
+            }
         }
-        document.getElementById("custom_button").disabled = false;
 
-    }
 
-</script>
+
+        function error_handler(index)
+        {
+            /* Get the PortScanner object back. */
+            var thiss = scanobjs[index];
+
+            /* If it's null, the scan timed out. */
+            if (thiss == null) {
+                return;
+            }
+            /* Set it to null so the timeout knows we handled it. */
+            scanobjs[index] = null;
+        }
+
+        function custom_scan()
+        {
+            const ips = [{"127.0.0.1": 80}, {"127.0.0.1": 65535}, {"0.0.0.0": 80}, {"localhost.": 80}, {"localhost.": 8080}, {"localhost": 8080}, {"localhost": 8081}, {"localhost": 8082}, {"localhost": 8083}, {"localhost": 8084}, {"localhost": 8085}, {"LoCALhOst": 443}, {"10.0.0.1": 455}, {"10.255.22.33": 80}, {"192.168.1.1": 443}, {"192.168.1.255":6463}, {"172.17.100.155": 4444}, {"172.31.255.255": 8081}, {"172.031.33.33": 445}, {"169.254.1.0": 547}, {"169.254.1.0": 21}, {"169.254.1.0": 194}];
+            const scripts = ["fp.disney.go.com", "h.chase.co.uk", "analytics.vacations.united.com", "tmx.bestbuy.com", "thm12.visa.com", "tmetrix.my.chick-fil-a.com", "cfa.fidelity.com", "content22.citibank.com", "deviceauth.dmv.ca.gov", "dfp.t-mobile.at", "src.ebay-us.com", "fp.disney.go.com", "fp.ups.com"];
+
+            trigger_portscan_button.disabled = true;
+            trigger_portscan_button.blur();
+
+            results_label.hidden = false;
+            results_container.hidden = false;
+            results_container.innerText = "";
+
+            for(const item of ips){
+                const [ip, port] = Object.entries(item)[0];
+                const scanner = new PortScanner(ip, port);
+
+                scanner.runHTTP();
+                scanner.runHTTPS();
+                scanner.ws();
+                scanner.wss();
+            }
+
+            for(const host of scripts){
+                const scanner = new PortScanner(host, 443);
+                scanner.runHTTPS();
+            }
+            
+            trigger_portscan_button.disabled = false;
+        }
+    </script>
+</body>
 </html>
