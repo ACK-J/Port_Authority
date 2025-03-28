@@ -28,7 +28,7 @@ This addon blocks websites from using javascript to port scan your computer/inte
 - Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
 
 ## Test All Forms of Port Scanning 
-- A webpage I made to test all forms of scanning in one location using the ./TestPortScans.html file
+- A webpage I made to test all forms of scanning in one location using the [./TestPortScans.html](https://github.com/mwsundberg/Port-Authority/blob/main/TestPortScans.html) file
 
 ## Test HTTP / HTTPS Portscanning
 - Site where you can test if HTTP port scanning works: https://defuse.ca/in-browser-port-scanning.htm
