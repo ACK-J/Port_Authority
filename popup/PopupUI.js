@@ -1,5 +1,18 @@
 import { getItemFromLocal } from "../global/BrowserStorageManager.js";
+import { getActiveTabId } from "../global/browserActions.js";
 
+/**
+ * Data fetching only, separated from rendering logic
+ * @param {"blocked_ports" | "blocked_hosts"} data_type Which storage key to extract the blocking activity data from
+ */
+async function fetch_tabs_blocking_data(data_type) {
+    // TODO rework this when flipping data structure as discussed in issue #47: https://github.com/ACK-J/Port_Authority/issues/47
+    const all_tabs_data = await getItemFromLocal(data_type, {});
+    if (Object.keys(all_tabs_data).length === 0) return;
+
+    const tab_id = await getActiveTabId();
+    return all_tabs_data[tab_id];
+}
 
 const SECTION_HEADER_ELEMENT = "h2";
 
@@ -88,13 +101,6 @@ function buildCollapseWrapperAndToggle(
  * Data is re-rendered each time the popup is opened.
  */
 async function updateBlockedPortsDisplay() {
-    let querying = await browser.tabs.query({
-        currentWindow: true,
-        active: true,
-    });
-    const tab = querying[0];
-    const tabId = tab.id;
-
     const blocked_data_display = document.getElementById(
         "blocked_data_display"
     );
@@ -110,14 +116,10 @@ async function updateBlockedPortsDisplay() {
     all_ports_wrapper.appendChild(all_ports_header);
 
     // Grab the blocked ports from the extensions local storage.
-    const blocked_ports_tabs = await getItemFromLocal("blocked_ports", {});
+    const blocked_ports = fetch_tabs_blocking_data("blocked_ports");
 
-    if (Object.entries(blocked_ports_tabs).length === 0) {
-        // Nothing to render
-        return;
-    }
-
-    const blocked_ports = blocked_ports_tabs[tabId] || {};
+    // Early return if no data
+    if (!blocked_ports) return;
 
     const hosts = Object.keys(blocked_ports);
 
@@ -162,15 +164,6 @@ async function updateBlockedPortsDisplay() {
 }
 
 async function updateBlockedHostsDisplay() {
-    let querying = await browser.tabs.query({
-        currentWindow: true,
-        active: true,
-    });
-    const tab = querying[0];
-    const tabId = tab.id;
-
-    // grab the list of blocked hosts from extension storage
-
     // Create a wrapper element to hold the header and list of blocked hosts
     const hosts_wrapper = buildSectionWrapper();
 
@@ -187,11 +180,7 @@ async function updateBlockedHostsDisplay() {
     hosts_ul.classList.add("list-unstyled");
 
     try {
-        const blocked_hosts_tabs = await getItemFromLocal(
-            "blocked_hosts",
-            {}
-        );
-        const blocked_hosts = blocked_hosts_tabs[tabId] || [];
+        const blocked_hosts = fetch_tabs_blocking_data("blocked_hosts") || [];
 
         // Build a list of host names as li elements
         for (let host = 0; host < blocked_hosts.length; host++) {
