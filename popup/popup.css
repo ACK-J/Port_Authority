@@ -1,0 +1,64 @@
+body {
+    min-width: 280px;
+}
+
+h1, h2 {
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* Header */
+header {
+    padding: 20px 30px;
+    justify-content: center;
+}
+
+header img {
+    /* Visual alignment tweaks, finicky */
+    margin-bottom: -5px;
+    margin-right: 5px;
+    margin-left: -5px;
+}
+
+/* Main layout */
+main {
+    gap: 1rem;
+    padding: 10px;
+}
+
+/* Headings should be slightly smaller */
+h2 {
+    font-size: 1.25rem;
+}
+
+/* Settings switches need vertical padding when displayed on two rows */
+.switch {
+    padding-top: 0.4em;
+}
+
+/* Options link */
+#settings {
+    float: right;
+    
+    /* `<a>` resets */
+    text-decoration: none;
+    color: var(--foreground);
+}
+#settings:hover, #settings:focus {
+    opacity: 0.75;
+}
+/* Adding the gear icon in a way that is easy to recolor */
+#settings::after {
+    content: '';
+    
+    display: block;
+    height: 1.5rem;
+    width: 1.5rem;
+
+    /* `currentColor` matches the `color` property's value */
+    background-color: currentColor;
+
+    /* Make it gear shaped, instead of a 24x24 gray rectangle */
+    mask-image: url("../icons/settings.png");
+    mask-size: 100%;
+}

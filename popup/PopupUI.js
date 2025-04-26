@@ -1,7 +1,7 @@
 import { getItemFromLocal } from "../global/BrowserStorageManager.js";
 
 
-const SECTION_HEADER_ELEMENT = "h5";
+const SECTION_HEADER_ELEMENT = "h2";
 
 /**
  * Applies an object of variable_name: variable_value as attributes to a provided DOM element.
