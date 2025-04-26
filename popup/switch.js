@@ -25,6 +25,6 @@ browser.runtime.sendMessage({type: 'popupInit'}).then((response) => {
   // Change to settings page
   document.getElementById('settings').addEventListener("click", settingsClicked);
 
-  // Make sure this doesn't run too early
-  setTimeout(() => document.documentElement.classList.remove('loading'), 5);
+  // Clear the loading class that was disabling the slider animations when we were setting the initial values
+  setTimeout(() => document.body.classList.remove("loading"), 5);
 });
