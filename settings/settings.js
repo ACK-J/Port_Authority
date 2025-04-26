@@ -41,29 +41,47 @@ async function load_allowed_domains() {
     listContainerElement.replaceChildren(...domainListDomElements);
 }
 
-function extractURLHost(text) {
-    let url = text + ""; // cast to string (is this needed?)
+/**
+ * Get a well-formed host to match against from an user-supplied URL
+ * @param {string} url A URL-like value (eg `https://example.com/file/path/etc`, `discord.com/invite/abcdefg`, `example.com:8080`)
+ * @returns {string} Well formatted host portion of url (eg `example.com`, `discord.com`, `example.com:8080`)
+ * 
+ * @throws Parsing an invalid URL
+ */
+function extractURLHost(url) {
+    // Leading/trailing whitespace removal
+    url = url.trim();
 
     // We don't actually care about the protocol as we only compare url.host
     // But the URL object will fail to create if no protocol is provided
-    if (url.slice(0, 4) !== "http") {
-        url = "https://" + url;
+    if (!url.match(/^\w*:\/\//)) {
+        url = "http://" + url;
     }
     const newUrl = new URL(url);
     return newUrl.host;
 }
 
-async function saveOptions(e) {
-    let url;
+// Allowlist add form bindings
+const allowlist_add_form = document.getElementById("allowlist_add_form");
+function allowlist_add_listener(event) {
+    // Prevent the form submit event from reloading the page and hiding `alert`s used for feedback
+    event.preventDefault();
+
+    const form_url = allowlist_add_form.elements["add_domain"];
+    let url = form_url.value;
     try {
-        url = extractURLHost(e.target[0].value);
+        url = extractURLHost(url);
     } catch(error) {
-        console.error(error);
+        console.warn("Error parsing a domain to add to the allowlist:", {url, error});
         alert("Please enter a valid domain.");
         return;
     }
+    
+    // Clear the URL input box
+    form_url.value = "";
 
-    await modifyItemInLocal("allowed_domain_list", [],
+    // Update and rerender the list
+    modifyItemInLocal("allowed_domain_list", [],
         (list) => {
             // Only update the list if it's a new member
             if (!list.includes(url)) {
@@ -72,8 +90,11 @@ async function saveOptions(e) {
                 alert("This domain is already in the list.");
                 return list;
             }
-        });
+        }).then(
+            /* Reuse the updated value to re-render the display */
+            (list) => load_allowed_domains(list)
+        );
 }
+allowlist_add_form.addEventListener("submit", allowlist_add_listener);
 
 load_allowed_domains();
-document.querySelector("form").addEventListener("submit", saveOptions);
