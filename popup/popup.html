@@ -37,8 +37,17 @@
             </label>
         </section>
         <!-- Per-tab blocking data sections -->
-        <section id="blocked_data_display">
-            <!-- Dynamically Populated -->
+        <section id="blocked_ports" hidden>
+            <h2>Blocked Port Scans</h2>
+            <ul class="dropzone selectable">
+                <!-- Dynamically Populated -->
+            </ul>
+        </section>
+        <section id="blocked_hosts" hidden>
+            <h2>Blocked Tracking Scripts</h2>
+            <ul class="dropzone selectable">
+                <!-- Dynamically Populated -->
+            </ul>
         </section>
     </main>
     <script type="module" src="./switch.js"></script>

@@ -62,3 +62,45 @@ h2 {
     mask-image: url("../icons/settings.png");
     mask-size: 100%;
 }
+
+/* Blocked port list styling */
+#blocked_ports ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0 10px;
+}
+
+/* The host text display */
+#blocked_ports .host {
+    font-weight: bold;
+}
+
+/* The "View Ports" toggle */
+.ports-expansion-toggle {
+    cursor: pointer;
+    color: var(--red-text);
+    float: right;
+}
+.ports-expansion-toggle input {
+    display: none;
+}
+
+/* Expand the ports list when the toggle is enabled */
+.ports-expansion-target {
+    display: none;
+}
+.ports-expansion-toggle:has(input:checked) + .ports-expansion-target {
+    display: block;
+}
+
+
+/* Blocked tracking scripts list styling */
+#blocked_hosts ul {
+    list-style-type: none;
+    margin: 0;
+    padding-left: 10px;
+}
+#blocked_hosts li {
+    color: var(--red-text);
+    font-weight: bold;
+}
