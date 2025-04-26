@@ -1,0 +1,22 @@
+body {
+    gap: 1rem;
+}
+
+input::placeholder {
+    font-style: italic;
+}
+
+/* "Remove domain" buttons */
+#allowlist_contents button {
+    background: color-mix(in oklab, var(--background) 80%, var(--foreground));
+    border: none;
+    border-radius: 1000em;
+    height: 1.5em;
+    cursor: pointer;
+
+    padding-bottom: 2px;
+}
+#allowlist_contents button:hover {
+    background-color: color-mix(in oklab, var(--red-text) 50%, red);
+    color: var(--background);
+}

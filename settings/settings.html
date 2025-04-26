@@ -8,19 +8,23 @@
     <title>Port Authority</title>
 
     <link rel="stylesheet" type="text/css" href="../global/common.css">
+    <link rel="stylesheet" type="text/css" href="./settings.css">
 </head>
 
-<body>
-    <p class="warning-text"><strong>Make sure you enter a proper domain name (ebay.com)</strong></p>
+<body class="flex-column">
     <form id="allowlist_add_form">
-        <label>Add new domain:</label>
-        <input type="text" required name="add_domain" />
-        <button type="submit">Save</button>
+        <p><strong class="warning-text">Make sure you enter a proper domain name (discord.com)</strong></p>
+        <label>Allow new domain:
+            <input type="text" name="add_domain" required placeholder="discord.com (example)">
+        </label>
+        <button type="submit">Add</button>
     </form>
-    <br />
-    <p><strong>Domains Allowed to Bypass PortAuthority Blocking:</strong></p>
-    <ul id="allowedDomainsListID">
-    </ul>
-    <script type="module" src="settings.js"></script>
+    <section id="allowlist_section">
+        <strong>Domains Allowed to Bypass PortAuthority Blocking:</strong>
+        <ul id="allowedDomainsListID" class="selectable">
+            <!-- Dynamically Populated -->
+        </ul>
+    </section>
+    <script type="module" src="./settings.js"></script>
 </body>
 </html>
