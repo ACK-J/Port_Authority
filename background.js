@@ -169,35 +169,26 @@ async function handleUpdated(tabId, changeInfo, tabInfo) {
     }
 }
 
+const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
 async function onMessage(message, sender) {
-  // Add origin check for security
-  const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
-  if (sender.url !== `${extensionOrigin}/popup/popup.html`) {
-    console.warn('Message from unexpected origin:', sender.url);
-    return;
-  }
+    // Add origin check for security (preemptively accepting messages from any extension page/script in advance of potential `settings.js` rewrite)
+    /* TODO Potentially remove, pretty sure this isn't needed:
+       https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/onMessage#:~:text=from%20another%20part%20of%20your%20extension
+       https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/onMessageExternal
+    */
+    if (sender.origin !== extensionOrigin) {
+        console.warn('Message from unexpected origin:', sender.url);
+        return;
+    }
 
-  switch(message.type) {
-    case 'popupInit':
-      return {
-        isListening: await isListening(),
-        notificationsAllowed: await getItemFromLocal("notificationsAllowed", true),
-      };
-    case 'toggleEnabled':
-      message.value ? await start() : await stop();
-      break;
-    case 'setItemInLocal':
-      await setItemInLocal(message.key, message.value);
-      break;
-    case 'setNotificationsAllowed':
-      await setItemInLocal("notificationsAllowed", message.value);
-      break;
-    case 'getItemInLocal':
-      return await getItemFromLocal(message.key, message.defaultValue);
-    default:
-      console.warn('Port Authority: unknown message: ', message);
-      break;
-  }
+    switch (message.type) {
+        case 'toggleEnabled':
+            message.value ? await start() : await stop();
+            break;
+        default:
+            console.warn('Port Authority: unknown message: ', message);
+            break;
+    }
 }
 browser.runtime.onMessage.addListener(onMessage);
 

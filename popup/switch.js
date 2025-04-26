@@ -1,30 +1,29 @@
-function toggleEnabled(ev){
-  browser.runtime.sendMessage({type: 'toggleEnabled', value: ev.target.checked});
-}
+import { getItemFromLocal, setItemInLocal } from "../global/BrowserStorageManager.js";
 
-function setNotificationsAllowed(ev){
-  browser.runtime.sendMessage({type: 'setNotificationsAllowed', value: ev.target.checked});
-}
+// Can attach settings page link instantly, no state reading needed
+document.getElementById('settings').addEventListener("click", () =>
+    browser.runtime.openOptionsPage());
 
-function settingsClicked(ev){
-  browser.runtime.openOptionsPage();
-}
-
-browser.runtime.sendMessage({type: 'popupInit'}).then((response) => {
-  document.getElementById("globalStatusPortAuthority").checked = response.isListening;
-
-  // Add an event listener to the switch
-  document.getElementById('globalStatusPortAuthority').addEventListener("change", toggleEnabled);
-
-
-  document.getElementById("notificationStatusPortAuthority").checked = response.notificationsAllowed;
-
-  // Add an event listener to the switch
-  document.getElementById('notificationStatusPortAuthority').addEventListener("change", setNotificationsAllowed);
-
-  // Change to settings page
-  document.getElementById('settings').addEventListener("click", settingsClicked);
-
-  // Clear the loading class that was disabling the slider animations when we were setting the initial values
-  setTimeout(() => document.body.classList.remove("loading"), 5);
+// Blocking switch state bindings (wrapped in `.then()` to allow for parallel setup of notifications switch)
+const blocking_switch = document.getElementById("blocking_switch");
+getItemFromLocal("blocking_enabled", true).then((blocking_enabled) => {
+    blocking_switch.checked = blocking_enabled;
+    blocking_switch.addEventListener("change", (ev) =>
+        browser.runtime.sendMessage({
+            type: 'toggleEnabled',
+            value: ev.target.checked
+        }));
 });
+
+// Notifications switch state bindings
+const notifications_switch = document.getElementById("notifications_switch");
+getItemFromLocal("notificationsAllowed", true).then((notificationsAllowed) => {
+    notifications_switch.checked = notificationsAllowed;
+    notifications_switch.addEventListener("change", (ev) =>
+        setItemInLocal("notificationsAllowed", ev.target.checked)
+    );
+});
+
+
+// Clear the loading class that was disabling the slider animations when we were setting the initial values
+setTimeout(() => document.body.classList.remove("loading"), 5);
