@@ -49,6 +49,9 @@ function blocked_ports_item(host, ports) {
         return container;
     }
 
+    // Put low-number privileged ports first in the list
+    ports.sort((a, b)=>(+a - +b));
+
     /**"View Ports" toggle
      * 
      * Collapse/expand functionality is added with CSS.
