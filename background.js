@@ -1,5 +1,5 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
-    addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./BrowserStorageManager.js";
+    addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 

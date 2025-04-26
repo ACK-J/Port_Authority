@@ -1,4 +1,4 @@
-import { getItemFromLocal } from "../BrowserStorageManager.js";
+import { getItemFromLocal } from "../global/BrowserStorageManager.js";
 
 
 const SECTION_HEADER_ELEMENT = "h5";

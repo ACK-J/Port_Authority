@@ -1,4 +1,4 @@
-import { getItemFromLocal, modifyItemInLocal } from "../BrowserStorageManager.js";
+import { getItemFromLocal, modifyItemInLocal } from "../global/BrowserStorageManager.js";
 
 let remove_buttons_event_controller;
 async function load_allowed_domains() {
