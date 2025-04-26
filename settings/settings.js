@@ -1,44 +1,77 @@
 import { getItemFromLocal, modifyItemInLocal } from "../global/BrowserStorageManager.js";
+import { createElement } from "../global/domUtils.js";
+
+/**
+ * A single item in the allowlist display
+ * @param {string} domain Technically a `URL.host` aka domain + port
+ * @param {AbortSignal} abort_signal Signal to kill the 'remove' button listeners when rerendering the table
+ * @returns {Element}
+ * ```html
+ * <li>
+ *     {domain}
+ *     <button onclick="{remove & refresh display}"
+ *             class="unselectable"
+ *             aria-label="Remove {domain} from allowlist">
+ *         ✕
+ *     </button>
+ * </li>
+ * ```
+ */
+function allowed_domain_item(domain, abort_signal) {
+    /** The listener for the "Remove domain" button's onclick. Removes the current domain from the list and refreshes the display */
+    const remove_domain_listener = () => {
+        modifyItemInLocal("allowed_domain_list", [],
+            (list) => list.filter(
+                (d) => d !== domain
+            )).then(
+                /* Reuse the updated value to re-render the display */
+                (list) => load_allowed_domains(list)
+            );
+    }
+
+    // Main container, the domain is inserted as plain text with a space
+    const item = createElement("li", {}, [domain, " "]);
+
+    // Button to remove the domain from the allowlist
+    const remove_button = createElement("button", {class: "unselectable", "aria-label": `Remove '${domain}' from allowlist`}, "✕");
+    remove_button.addEventListener("click", remove_domain_listener, {signal: abort_signal}); // By triggering `remove_buttons_event_controller.abort()`, all buttons with this signal passed will have their listeners removed
+    item.appendChild(remove_button);
+
+    return item;
+}
 
 let remove_buttons_event_controller;
-async function load_allowed_domains() {
-    // Remove all of the stale listeners (might not need this since calling `replaceChildren` should kill all the children's listeners, but better safe than sorry)
+const list_contents = document.getElementById("allowlist_contents");
+const allowlist_section = document.getElementById("allowlist_section");
+async function load_allowed_domains(allowed_domain_list) {
+    // Remove all of the stale listeners
+    // TODO figure out if this is needed, unsure since calling `replaceChildren` could do listener cleanup on the deleted children
     if (remove_buttons_event_controller) remove_buttons_event_controller.abort();
 
     // Make a new AbortController for all of the fresh buttons
     remove_buttons_event_controller = new AbortController();
-    const signal = remove_buttons_event_controller.signal;
 
-    const allowedDomainsList = await getItemFromLocal(
-        "allowed_domain_list",
-        []
-    );
+    // If not provided, fetch the allowed domain list from storage
+    allowed_domain_list ??= await getItemFromLocal("allowed_domain_list", []);
 
-    // Results in a list of `<li>domain.com <button onclick="remove & refresh UI">Remove</button></li>`
-    const domainListDomElements = allowedDomainsList.map((domain) => {
-        const listItem = document.createElement("li");
-        listItem.innerText = domain + " ";
+    // Clear stale contents, if any
+    list_contents.replaceChildren();
 
-        const button = document.createElement("button");
-        button.innerText = "Remove";
-        button.addEventListener("click", async () => {
-            // Remove the current domain from the list
-            await modifyItemInLocal("allowed_domain_list", [],
-                (list) => list.filter(
-                    (d) => d !== domain
-                ));
+    // Early return, hiding wrapper if no data provided
+    if(allowed_domain_list?.length === 0) {
+        allowlist_section.setAttribute("hidden", "");
+        return;
+    }
 
-            // Refresh the domain list displayed
-            load_allowed_domains();
-        }, { signal }); // By triggering `remove_buttons_event_controller.abort()`, all buttons with this signal passed will have their listeners removed
-        listItem.appendChild(button);
+    // Populate the list items
+    for(const domain of allowed_domain_list) {
+        const new_row = allowed_domain_item(domain, remove_buttons_event_controller.signal);
 
-        return listItem;
-    });
+        list_contents.appendChild(new_row);
+    };
 
-    // Override the old list with the new contents
-    const listContainerElement = document.getElementById("allowedDomainsListID");
-    listContainerElement.replaceChildren(...domainListDomElements);
+    // Unhide the container wrapper at end
+    allowlist_section.removeAttribute("hidden");
 }
 
 /**
