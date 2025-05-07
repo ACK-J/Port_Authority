@@ -6,7 +6,7 @@ document.getElementById('settings').addEventListener("click", () =>
 
 // Blocking switch state bindings (wrapped in `.then()` to allow for parallel setup of notifications switch)
 const blocking_switch = document.getElementById("blocking_switch");
-getItemFromLocal("blocking_enabled", true).then((blocking_enabled) => {
+const blocking_setup = getItemFromLocal("blocking_enabled", true).then((blocking_enabled) => {
     blocking_switch.checked = blocking_enabled;
     blocking_switch.addEventListener("change", (ev) =>
         browser.runtime.sendMessage({
@@ -17,7 +17,7 @@ getItemFromLocal("blocking_enabled", true).then((blocking_enabled) => {
 
 // Notifications switch state bindings
 const notifications_switch = document.getElementById("notifications_switch");
-getItemFromLocal("notificationsAllowed", true).then((notificationsAllowed) => {
+const notifications_setup = getItemFromLocal("notificationsAllowed", true).then((notificationsAllowed) => {
     notifications_switch.checked = notificationsAllowed;
     notifications_switch.addEventListener("change", (ev) =>
         setItemInLocal("notificationsAllowed", ev.target.checked)
@@ -26,4 +26,8 @@ getItemFromLocal("notificationsAllowed", true).then((notificationsAllowed) => {
 
 
 // Clear the loading class that was disabling the slider animations when we were setting the initial values
-setTimeout(() => document.body.classList.remove("loading"), 5);
+Promise.allSettled([blocking_setup, notifications_setup]).then(() => {
+    // Force the styles to be processed by calling a post-layout reliant function
+    document.body.getBoundingClientRect();
+    document.body.classList.remove("loading");
+});
