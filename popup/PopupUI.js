@@ -112,6 +112,13 @@ async function load_blocked_ports(blocked_ports_object) {
 
     // Unhide the container wrapper at end
     blocked_ports_wrapper.removeAttribute("hidden");
+
+    // Read and pass the in-DOM height for animation of the collapsible ports lists
+    // This can be removed once Firefox supports `interpolate-size: allow-keywords`,
+    // `height: auto` will work as a final animation value then.
+    blocked_ports_contents.querySelectorAll(".ports-expansion-target").forEach((expansion_container) => {
+        expansion_container.style = `--expanded-height: ${expansion_container.scrollHeight}px`;    
+    });
 }
 
 // Populate `#blocked_hosts`

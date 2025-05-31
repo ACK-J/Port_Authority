@@ -87,10 +87,16 @@ h2 {
 
 /* Expand the ports list when the toggle is enabled */
 .ports-expansion-target {
-    display: none;
+    visibility: hidden; /* Prevents copying unwanted values */
+    overflow-y: hidden;
+    height: 0;
+
+    transition-property: height, visibility;
+    transition-duration: 0.25s;
 }
 .ports-expansion-toggle:has(input:checked) + .ports-expansion-target {
-    display: block;
+    visibility: visible;
+    height: var(--expanded-height); /* Replace with `auto` once `interpolate-size: allow-keywords` is supported in Firefox */
 }
 
 
