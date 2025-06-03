@@ -11,8 +11,6 @@ input::placeholder {
     background: color-mix(in oklab, var(--background) 80%, var(--foreground));
     border: none;
     border-radius: 1000em;
-    width: 1.5em;
-    height: 1.5em;
     cursor: pointer;
 
     padding-bottom: 2px;
