@@ -17,7 +17,7 @@ import { createElement } from "../global/domUtils.js";
  * </li>
  * ```
  */
-function allowed_domain_item(domain, abort_signal) {
+function allowlist_item(domain, abort_signal) {
     /** The listener for the "Remove domain" button's onclick. Removes the current domain from the list and refreshes the display */
     const remove_domain_listener = () => {
         modifyItemInLocal("allowed_domain_list", [],
@@ -25,7 +25,7 @@ function allowed_domain_item(domain, abort_signal) {
                 (d) => d !== domain
             )).then(
                 /* Reuse the updated value to re-render the display */
-                (list) => load_allowed_domains(list)
+                (list) => load_allowlist(list)
             );
     }
 
@@ -40,10 +40,11 @@ function allowed_domain_item(domain, abort_signal) {
     return item;
 }
 
+// Populate `#allowlist_section`
 let remove_buttons_event_controller;
-const list_contents = document.getElementById("allowlist_contents");
-const allowlist_section = document.getElementById("allowlist_section");
-async function load_allowed_domains(allowed_domain_list) {
+const allowlist_wrapper = document.getElementById("allowlist_section");
+const allowlist_contents = document.getElementById("allowlist_contents");
+async function load_allowlist(allowed_domain_list) {
     // Remove all of the stale listeners
     // TODO figure out if this is needed, unsure since calling `replaceChildren` could do listener cleanup on the deleted children
     if (remove_buttons_event_controller) remove_buttons_event_controller.abort();
@@ -55,23 +56,23 @@ async function load_allowed_domains(allowed_domain_list) {
     allowed_domain_list ??= await getItemFromLocal("allowed_domain_list", []);
 
     // Clear stale contents, if any
-    list_contents.replaceChildren();
+    allowlist_contents.replaceChildren();
 
     // Early return, hiding wrapper if no data provided
     if(allowed_domain_list?.length === 0) {
-        allowlist_section.setAttribute("hidden", "");
+        allowlist_wrapper.setAttribute("hidden", "");
         return;
     }
 
     // Populate the list items
     for(const domain of allowed_domain_list) {
-        const new_row = allowed_domain_item(domain, remove_buttons_event_controller.signal);
+        const new_row = allowlist_item(domain, remove_buttons_event_controller.signal);
 
-        list_contents.appendChild(new_row);
+        allowlist_contents.appendChild(new_row);
     };
 
     // Unhide the container wrapper at end
-    allowlist_section.removeAttribute("hidden");
+    allowlist_wrapper.removeAttribute("hidden");
 }
 
 /**
@@ -125,9 +126,9 @@ function allowlist_add_listener(event) {
             }
         }).then(
             /* Reuse the updated value to re-render the display */
-            (list) => load_allowed_domains(list)
+            (list) => load_allowlist(list)
         );
 }
 allowlist_add_form.addEventListener("submit", allowlist_add_listener);
 
-load_allowed_domains();
+load_allowlist();
