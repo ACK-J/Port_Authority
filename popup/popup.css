@@ -63,8 +63,9 @@ h2 {
     mask-size: 100%;
 }
 
-/* Blocked port list styling */
-#blocked_ports ul {
+/* Blocked portscans/scripts list styling */
+#blocked_ports ul,
+#blocked_hosts ul {
     list-style-type: none;
     margin: 0;
     padding: 0 10px;
@@ -101,11 +102,6 @@ h2 {
 
 
 /* Blocked tracking scripts list styling */
-#blocked_hosts ul {
-    list-style-type: none;
-    margin: 0;
-    padding-left: 10px;
-}
 #blocked_hosts li {
     color: var(--red-text);
     font-weight: bold;
