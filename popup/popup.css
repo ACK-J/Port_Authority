@@ -29,6 +29,7 @@ main {
 /* Headings should be slightly smaller */
 h2 {
     font-size: 1.25rem;
+    margin-bottom: 0.25rem;
 }
 
 /* Settings switches need vertical padding when displayed on two rows */
