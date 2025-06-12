@@ -40,7 +40,6 @@
   },
 
   "browser_action": {
-    "browser_style": true,
     "default_popup": "popup/popup.html",
     "default_title": "Port Authority",
     "default_icon": {

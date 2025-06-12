@@ -19,78 +19,60 @@
 /*
  * Stylesheet for the switch buttons.
  */
-
-/* Box around the slider */
 .switch {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 24px;
-}
+    --height: 24px;
+    --width: 50px;
+    --pill-inset: 4px;
+    cursor: pointer;
+ }
 
 .switch input {
     display: none;
 }
 
 .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #5e5c5c;
-    -webkit-transition: .4s;
-    transition: .4s;
-}
+    position: relative;
+    height: var(--height);
+    width: var(--width);
+    margin-inline-end: 8px;
+    background-color: oklch(from var(--foreground) l c h / 25%);
 
-.slider:before {
+    transition: background-color .4s;
+}
+.slider::after {
     position: absolute;
     content: "";
-    height: 16px;
-    width: 16px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    -webkit-transition: .4s;
-    transition: .4s;
+    height: calc(var(--height) - 2 * var(--pill-inset));
+    width: calc(var(--height) - 2 * var(--pill-inset));
+    left: var(--pill-inset);
+    top: var(--pill-inset);
+    background-color: var(--light);
+
+    transition: transform .4s;
 }
 
-:root.loading .slider, :root.loading .slider::before {
-  -webkit-transition: none;
-  transition: none;
+body.loading .slider,
+body.loading .slider::after {
+    transition: none;
 }
 
-input:checked + .slider {
-    background-color: #800000;
+/* Toggled-on state */
+.switch input:checked + .slider {
+    background-color: var(--red);
+}
+.switch input:checked + .slider::after {
+    transform: translateX(calc(var(--width) - var(--height)));
 }
 
 input:focus + .slider {
-    box-shadow: 0 0 1px #800000;
-}
-
-input:checked + .slider:before {
-    -webkit-transform: translateX(26px);
-    -ms-transform: translateX(26px);
-    transform: translateX(26px);
+    box-shadow: 0 0 1px var(--red);
 }
 
 /* Rounded sliders */
 .slider.round {
-  border-radius: 34px;
+    border-radius: calc(var(--height) / 2);
 }
 
-.slider.round:before {
-  border-radius: 50%;
+.slider.round::after {
+    border-radius: 50%;
 }
-
-.switch label {
-    position: absolute;
-    left: 60px;
-    word-break: keep-all;
-}
-
-label {
-    font-weight: normal;
-}
-
