@@ -23,20 +23,8 @@ const thm = new RegExp("online-metrix[.]net$", "i");
 async function cancel(requestDetails) {
     // First check if it's a same-origin request
     if(!requestDetails.thirdParty) {
-        try {
-            const origin = new URL(requestDetails.originUrl);
-            const request = new URL(requestDetails.url);
-
-            // Also want to run our own check, for paranoia's sake
-            if(origin.origin === request.origin) {
-                console.log("Same-origin/first-party request allowed:", {origin, request, thirdParty: requestDetails.thirdParty});
-                return { cancel: false };
-            } else {
-                console.warn("`requestDetails.thirdParty` and our check of origins disagree:", {origin, request, thirdParty: requestDetails.thirdParty});
-            }
-        } catch(error) {
-            console.error("Error parsing request `originUrl` or `url`:", requestDetails, error);
-        }
+        console.debug("Same-origin/first-party request allowed:", {origin: requestDetails.originUrl, request: requestDetails.url});
+        return { cancel: false };
     }
 
 
