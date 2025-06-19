@@ -1,0 +1,60 @@
+:root {
+    --light: #ffffff;
+    --dark: #23222B;
+    --background: var(--light);
+    --foreground: var(--dark);
+    --red: #800000;
+    --red-text: var(--red);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Colors selected to match the settings page's wrapper container styles */
+        --light: #BFBFC9;
+        --dark: #23222B;
+        --background: var(--dark);
+        --foreground: var(--light);
+        --red: #B20000; /* Slightly brighter for better contrast against `--background` */
+        --red-text: color-mix(in oklab, var(--red) 50%, red);
+    }
+}
+
+body {
+    box-sizing: border-box;
+    margin: 0;
+
+    user-select: none;
+
+    font-family: system-ui, sans-serif;
+    font-size: 15px;
+
+    background-color: var(--background);
+    color: var(--foreground);
+}
+
+/* General styling classes */
+.red-bg {
+    background-color: var(--red);
+    color: var(--background);
+}
+.warning-text {
+    color: var(--red-text);
+}
+
+/* Want to default disallow text selection for things like options labels but selectively enable it for copyable data like banned IPs or the allowlist */
+.selectable {
+    user-select: text;
+}
+.unselectable {
+    user-select: none;
+}
+
+/* Flex-based layout helpers*/
+.flex-column {
+    display: flex;
+    flex-direction: column;
+}
+.flex-row {
+    display: flex;
+    align-items: center;
+}
