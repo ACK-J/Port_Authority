@@ -7,7 +7,7 @@ const PROTOCOLS_AND_PORTS = {
     "http:": 80,
     "ws:": 80,
     "https:": 443,
-    "wss:": 433
+    "wss:": 443
 }
 
 export const getPortForProtocol = (protocol) => {
