@@ -55,3 +55,19 @@ export async function getActiveTabId() {
     const tab = querying[0];
     return tab.id;
 }
+
+/**
+ * Opens the Selective Allow decision popup for a blocked cross-origin local navigation.
+ * @param {string} origin The host of the page that contained the link (e.g. "github.com")
+ * @param {string} destination The local host:port being navigated to (e.g. "localhost:8080")
+ * @param {string} originalUrl The full original URL the user was trying to reach
+ */
+export function openSelectiveAllowPopup(origin, destination, originalUrl) {
+    const params = new URLSearchParams({ origin, destination, originalUrl });
+    browser.windows.create({
+        url: browser.runtime.getURL(`selectiveAllow/selectiveAllow.html?${params}`),
+        type: "popup",
+        width: 500,
+        height: 280,
+    });
+}

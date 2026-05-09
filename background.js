@@ -1,5 +1,6 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
+import { openSelectiveAllowPopup } from "./global/browserActions.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -19,6 +20,10 @@ async function startup(){
 const local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/0.0.0.0|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(?:\/([789]|1?[0-9]{2}))?\\b", "i");
 // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
 const thm = new RegExp("online-metrix[.]net$", "i");
+
+// In-memory session allow set for cross-origin local navigations.
+// Keys are "origin|destination" strings. Cleared on browser restart.
+const sessionAllowSet = new Set();
 
 async function cancel(requestDetails) {
     // First check if it's a same-origin request
@@ -54,6 +59,28 @@ async function cancel(requestDetails) {
         console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url, error);
     }
 
+
+    // Top-level navigations (user-clicked links) to local addresses get a
+    // selective allow prompt rather than a silent block. Port scanners cannot
+    // use main_frame — each probe opens a visible new tab and destroys the
+    // attack page.
+    if (requestDetails.type === "main_frame" && local_filter.test(requestDetails.url)) {
+        const origin = check_allowed_url.host;
+        const destination = url.host;
+        const allowKey = `${origin}|${destination}`;
+
+        if (sessionAllowSet.has(allowKey)) {
+            return { cancel: false };
+        }
+
+        const crossOriginList = await getItemFromLocal("cross_origin_allowlist", []);
+        if (crossOriginList.some(e => e.origin === origin && e.destination === destination)) {
+            return { cancel: false };
+        }
+
+        openSelectiveAllowPopup(origin, destination, requestDetails.url);
+        return { cancel: true };
+    }
 
     // Local request check
     if (local_filter.test(requestDetails.url)) {
@@ -173,6 +200,23 @@ async function onMessage(message, sender) {
         case 'toggleEnabled':
             message.value ? await start() : await stop();
             break;
+
+        case 'allowOnce':
+            sessionAllowSet.add(`${message.origin}|${message.destination}`);
+            browser.tabs.create({ url: message.originalUrl });
+            break;
+
+        case 'alwaysAllow':
+            sessionAllowSet.add(`${message.origin}|${message.destination}`);
+            await modifyItemInLocal("cross_origin_allowlist", [], (list) => {
+                if (!list.some(e => e.origin === message.origin && e.destination === message.destination)) {
+                    list.push({ origin: message.origin, destination: message.destination });
+                }
+                return list;
+            });
+            browser.tabs.create({ url: message.originalUrl });
+            break;
+
         default:
             console.warn('Port Authority: unknown message: ', message);
             break;
