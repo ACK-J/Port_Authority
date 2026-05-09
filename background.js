@@ -28,6 +28,15 @@ async function cancel(requestDetails) {
     }
 
 
+    // Top-level navigations (user-initiated tab loads) cannot be used for port
+    // scanning — each probe would open a visible new tab and destroy the attack
+    // page. Allow them unconditionally so legitimate LAN links (Proxmox, VPN
+    // consoles, local dev servers) are not broken.
+    if (requestDetails.type === "main_frame") {
+        console.debug("Top-level navigation to local resource allowed:", requestDetails.url);
+        return { cancel: false };
+    }
+
     // Then check the allowlist
     let check_allowed_url;
     try {
