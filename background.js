@@ -20,6 +20,20 @@ const local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:
 // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
 const thm = new RegExp("online-metrix[.]net$", "i");
 
+function isPrivateIPv4(ip) {
+    const parts = ip.split(".").map(Number);
+    if (parts.length !== 4 || parts.some(isNaN)) return false;
+    const [a, b] = parts;
+    return (
+        a === 127 ||
+        a === 10 ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        (a === 169 && b === 254) ||
+        (a === 0 && parts.every(p => p === 0))
+    );
+}
+
 async function cancel(requestDetails) {
     // First check if it's a same-origin request
     if(!requestDetails.thirdParty) {
@@ -64,13 +78,29 @@ async function cancel(requestDetails) {
         return { cancel: true };
     }
 
-    // The early return in the if case above makes sure we are not searching the CNAME of local addresses
-    // Send a request to get the CNAME of the webrequest
-    const resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
-    // If the CNAME redirects to a online-metrix.net domain -> Block
+    // Resolve hostname once; check both private-IP and ThreatMetrix CNAME.
+    let resolving;
+    try {
+        resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
+    } catch (e) {
+        // Fail open — DNS failure should not break valid but temporarily
+        // unresolvable domains (captive portals, split-horizon DNS, etc.)
+        console.warn("DNS resolution failed for:", url.host, e);
+        return { cancel: false };
+    }
+
+    for (const address of resolving.addresses ?? []) {
+        if (isPrivateIPv4(address)) {
+            console.debug("Blocking domain: DNS resolved to private IP:", { url, address });
+            increaseBadge(requestDetails, false);
+            addBlockedPortToHost(url, requestDetails.tabId);
+            return { cancel: true };
+        }
+    }
+
     if (thm.test(resolving.canonicalName)) {
-        console.debug("Blocking domain for being a threatmetrix match: ", {url: url, cname: resolving.canonicalName});
-        increaseBadge(requestDetails, true); // increment badge and alert
+        console.debug("Blocking domain for ThreatMetrix CNAME:", { url, cname: resolving.canonicalName });
+        increaseBadge(requestDetails, true);
         addBlockedTrackingHost(url, requestDetails.tabId);
         return { cancel: true };
     }
