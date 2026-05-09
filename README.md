@@ -19,6 +19,28 @@ This addon blocks websites from using javascript to port scan your computer/inte
 4. Provides an optional whitelist to prevent portscans and tracking scripts from being blocked on trusted domains
 5. Gives a nice notification when one of the above scenarios are blocked
 6. This addon doesn't store/transmit/log any data or metadata about you or your requests... because, ya know, privacy
+7. Prompts you when a page from the internet tries to navigate you to a local address, letting you allow or block on a per-origin basis
+
+## Selective Allow — Cross-Origin Local Navigation
+
+When a page on the internet contains a link to a local address (e.g. `http://localhost:8080`), Port Authority blocks the navigation by default. Rather than failing silently, it opens a small popup so you can decide what to do.
+
+**The popup shows:**
+- The external origin that contained the link (e.g. `github.com`)
+- The local address being navigated to
+- The request protocol
+
+**Your options:**
+
+| Button | Effect |
+|--------|--------|
+| **Block** | Request stays blocked. Nothing is saved. |
+| **Allow Once** | Allowed for the rest of this browser session. Resets on browser restart. |
+| **Always Allow** | The `origin → destination` pair is saved to extension settings. Future navigations from the same origin to the same local address are allowed immediately without prompting. |
+
+Saved "Always Allow" entries can be reviewed and removed from the extension settings page (gear icon in the popup).
+
+> **Note:** This prompt only appears for full page navigations (clicking a link that opens a new tab). Background requests from web pages to local addresses — `fetch`, XHR, iframes — are still silently blocked and logged in the extension popup. Those are the primary port-scanning vector and are never prompted.
 
 ## Donations
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`

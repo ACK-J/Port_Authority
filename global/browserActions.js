@@ -55,3 +55,20 @@ export async function getActiveTabId() {
     const tab = querying[0];
     return tab.id;
 }
+
+/**
+ * Opens a Selective Allow decision popup.
+ * @param {string} origin The host of the page that initiated the request (e.g. "github.com")
+ * @param {string} destination The host:port being navigated to (e.g. "localhost:8080")
+ * @param {string} originalUrl The full original URL the user was trying to reach
+ * @param {string} [page="selectiveAllow.html"] The page within the `selectiveAllow/` directory to open
+ */
+export function openSelectiveAllowPopup(origin, destination, originalUrl, page = "selectiveAllow.html") {
+    const params = new URLSearchParams({ origin, destination, originalUrl });
+    browser.windows.create({
+        url: browser.runtime.getURL(`selectiveAllow/${page}?${params}`),
+        type: "popup",
+        width: 500,
+        height: 280,
+    });
+}

@@ -1,0 +1,106 @@
+/* selectiveAllow popup — supplements common.css */
+
+body {
+    padding: 0;
+    overflow: hidden;
+    min-width: 320px;
+}
+
+header {
+    gap: 10px;
+    padding: 10px 14px;
+    flex-shrink: 0;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+main {
+    padding: 14px 16px 16px;
+    gap: 12px;
+    flex: 1;
+}
+
+#prompt-text {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+/* Two-column definition list */
+#request-details {
+    margin: 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 16px;
+    row-gap: 4px;
+    font-size: 0.9rem;
+}
+
+#request-details dt {
+    font-weight: 600;
+    color: var(--foreground);
+    opacity: 0.7;
+}
+
+#request-details dd {
+    margin: 0;
+    word-break: break-all;
+    user-select: text;
+}
+
+/* Action buttons row */
+#action-row {
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+#action-row button {
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter 0.1s;
+}
+
+#action-row button:hover {
+    filter: brightness(1.1);
+}
+
+/* Block — neutral/muted */
+#btn-block {
+    background-color: color-mix(in oklab, var(--foreground) 15%, var(--background));
+    color: var(--foreground);
+    border-color: color-mix(in oklab, var(--foreground) 30%, var(--background));
+}
+
+/* Allow Once — blue */
+#btn-allow-once {
+    background-color: #1a73e8;
+    color: #ffffff;
+}
+
+/* Always Allow — green */
+#btn-always-allow {
+    background-color: #1e8c45;
+    color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+    #btn-allow-once {
+        background-color: #4a9eff;
+        color: #111;
+    }
+
+    #btn-always-allow {
+        background-color: #2db55d;
+        color: #111;
+    }
+}
