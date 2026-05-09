@@ -1,8 +1,11 @@
+// Handles the Selective Allow popup decisions for the cross-origin local request blocking feature.
+
 const params = new URLSearchParams(location.search);
 const origin = params.get("origin") ?? "unknown";
 const destination = params.get("destination") ?? "unknown";
 const originalUrl = params.get("originalUrl") ?? "";
 
+// Extract the protocol from the original URL for display
 const protocol = (() => {
     try { return new URL(originalUrl).protocol.replace(":", ""); } catch { return "unknown"; }
 })();

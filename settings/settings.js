@@ -139,6 +139,7 @@ const cross_origin_wrapper = document.getElementById("cross_origin_section");
 const cross_origin_contents = document.getElementById("cross_origin_contents");
 
 function cross_origin_item(entry, abort_signal) {
+    /** Removes this entry from storage and refreshes the display */
     const remove_listener = () => {
         modifyItemInLocal("cross_origin_allowlist", [],
             (list) => list.filter(
@@ -147,8 +148,11 @@ function cross_origin_item(entry, abort_signal) {
         ).then((list) => load_cross_origin_list(list));
     };
 
+    // Main container, the label is inserted as plain text with a space
     const label = `${entry.origin} → ${entry.destination}`;
     const item = createElement("li", {}, [label, " "]);
+
+    // Button to remove the entry from the allowlist
     const remove_btn = createElement("button", {
         class: "unselectable",
         "aria-label": `Remove permission for ${label}`
@@ -159,24 +163,32 @@ function cross_origin_item(entry, abort_signal) {
 }
 
 async function load_cross_origin_list(list) {
+    // Remove all stale listeners
     if (cross_origin_remove_controller) cross_origin_remove_controller.abort();
+
+    // Make a new AbortController for all of the fresh buttons
     cross_origin_remove_controller = new AbortController();
 
+    // If not provided, fetch the cross-origin allowlist from storage
     list ??= await getItemFromLocal("cross_origin_allowlist", []);
 
+    // Clear stale contents, if any
     cross_origin_contents.replaceChildren();
 
+    // Early return, hiding wrapper if no data provided
     if (!list || list.length === 0) {
         cross_origin_wrapper.setAttribute("hidden", "");
         return;
     }
 
+    // Populate the list items
     for (const entry of list) {
         cross_origin_contents.appendChild(
             cross_origin_item(entry, cross_origin_remove_controller.signal)
         );
     }
 
+    // Unhide the container wrapper at end
     cross_origin_wrapper.removeAttribute("hidden");
 }
 
