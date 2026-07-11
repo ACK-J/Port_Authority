@@ -1,5 +1,6 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
+import { isPrivateAddress } from "./global/privateAddress.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -19,20 +20,6 @@ async function startup(){
 const local_filter = new RegExp("\\b(^(http|https|wss|ws|ftp|ftps):\/\/127[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/0.0.0.0|^(http|https|wss|ws|ftp|ftps):\/\/(10)([.](25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})){3}|^(http|https|wss|ws|ftp|ftps):\/\/localhost|^(http|https|wss|ws|ftp|ftps):\/\/172[.](0?16|0?17|0?18|0?19|0?20|0?21|0?22|0?23|0?24|0?25|0?26|0?27|0?28|0?29|0?30|0?31)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/192[.]168[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|^(http|https|wss|ws|ftp|ftps):\/\/169[.]254[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)[.](?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))(?:\/([789]|1?[0-9]{2}))?\\b", "i");
 // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
 const thm = new RegExp("online-metrix[.]net$", "i");
-
-function isPrivateIPv4(ip) {
-    const parts = ip.split(".").map(Number);
-    if (parts.length !== 4 || parts.some(isNaN)) return false;
-    const [a, b] = parts;
-    return (
-        a === 127 ||
-        a === 10 ||
-        (a === 172 && b >= 16 && b <= 31) ||
-        (a === 192 && b === 168) ||
-        (a === 169 && b === 254) ||
-        (a === 0 && parts.every(p => p === 0))
-    );
-}
 
 async function cancel(requestDetails) {
     // First check if it's a same-origin request
@@ -66,8 +53,8 @@ async function cancel(requestDetails) {
         url = new URL(requestDetails.url);
     } catch(error) {
         console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url, error);
+        return { cancel: false };
     }
-
 
     // Local request check
     if (local_filter.test(requestDetails.url)) {
@@ -90,8 +77,8 @@ async function cancel(requestDetails) {
     }
 
     for (const address of resolving.addresses ?? []) {
-        if (isPrivateIPv4(address)) {
-            console.debug("Blocking domain: DNS resolved to private IP:", { url, address });
+        if (isPrivateAddress(address)) {
+            console.debug("Blocking domain: DNS resolved to private address:", { url, address });
             increaseBadge(requestDetails, false);
             addBlockedPortToHost(url, requestDetails.tabId);
             return { cancel: true };
