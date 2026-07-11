@@ -46,7 +46,7 @@ export async function run() {
     assert(background.includes("dnsCache"), "passes dnsCache to evaluateRequest");
     assert(background.includes("toggleEnabled"), "handles toggle messages");
     assert(background.includes("onBeforeRequest"), "registers webRequest listener");
-    assert(background.includes("allowed_domain_list") || background.includes("getAllowedDomainListCached"), "reads allowlist from storage/cache");
+    assert(background.includes("hasListener"), "guards against duplicate blocking listeners");
     assert(background.includes("onRemoved"), "cleans up tab activity on tab close");
     assert(background.includes("resetSessionTabActivity"), "resets stale session activity on startup");
     assert(background.includes("getAllowedDomainListCached"), "uses cached allowlist on hot path");
@@ -56,6 +56,7 @@ export async function run() {
     assert(requestFilter.includes("THREATMETRIX_SUFFIXES"), "exports auditable suffix list");
     assert(requestFilter.includes("matchesThreatMetrixHost"), "exports host matcher");
     assert(requestFilter.includes("createDnsResultCache"), "exports DNS LRU helper");
+    assert(requestFilter.includes("getInflight"), "DNS cache coalesces in-flight resolves");
     assert(requestFilter.includes("threatmetrix.com"), "lists threatmetrix.com");
     assert(requestFilter.includes("lexisnexisrisk.com"), "lists lexisnexisrisk.com");
     assert(requestFilter.includes("lnrsoftware.com"), "lists lnrsoftware.com");

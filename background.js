@@ -33,9 +33,9 @@ async function startup() {
     // Get the blocking state from cold storage
     const state = await getItemFromLocal("blocking_enabled", true);
     if (state === true) {
-        start();
+        await start();
     } else {
-        stop();
+        await stop();
     }
 }
 
@@ -53,15 +53,10 @@ async function cancel(requestDetails) {
     });
 
     if (!decision.cancel) {
-        if (decision.reason === "first-party") {
-            console.debug("Same-origin/first-party request allowed:", {
-                origin: requestDetails.originUrl,
-                request: requestDetails.url,
-            });
-        } else if (decision.reason === "unparseable-origin") {
+        // Avoid per-request console I/O on the hot allow path — logging every
+        // first-party asset on SPAs (Figma, etc.) retains huge console buffers.
+        if (decision.reason === "unparseable-origin") {
             console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
-        } else if (decision.reason === "allowlisted") {
-            console.debug("Aborted filtering on domain due to whitelist: ", requestDetails.originUrl);
         } else if (decision.reason === "unparseable-url") {
             console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url);
         } else if (decision.reason === "dns-failure") {
@@ -71,12 +66,10 @@ async function cancel(requestDetails) {
     }
 
     if (decision.reason === "portscan") {
-        console.debug("Blocking domain for portscanning: ", decision.url);
         return blockPortScan(requestDetails, decision.url);
     }
 
     if (decision.reason === "threatmetrix") {
-        console.debug("Blocking domain for LexisNexis/ThreatMetrix match:", { url: decision.url });
         increaseBadge(requestDetails, true);
         addBlockedTrackingHost(decision.url, requestDetails.tabId);
         return { cancel: true };
@@ -88,7 +81,12 @@ async function cancel(requestDetails) {
 async function start() {
     // Enables blocking
     try {
-        //Add event listener
+        if (browser.webRequest.onBeforeRequest.hasListener(cancel)) {
+            console.log("Blocking listener already attached");
+            await setItemInLocal("blocking_enabled", true);
+            return;
+        }
+
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
             { urls: ["<all_urls>"] }, // Match all HTTP, HTTPS, FTP, FTPS, WS, WSS URLs.
@@ -105,31 +103,14 @@ async function start() {
 async function stop() {
     // Disables blocking
     try {
-        //Remove event listener
-        browser.webRequest.onBeforeRequest.removeListener(cancel);
-
-        console.log("Removed `onBeforeRequest` listener successfully: blocking disabled");
+        if (browser.webRequest.onBeforeRequest.hasListener(cancel)) {
+            browser.webRequest.onBeforeRequest.removeListener(cancel);
+            console.log("Removed `onBeforeRequest` listener successfully: blocking disabled");
+        }
         await setItemInLocal("blocking_enabled", false);
     } catch (e) {
         console.error("STOP() ", e);
     }
-}
-
-async function isListening() {
-    // returns if blocking is on
-    const storage_state = await getItemFromLocal("blocking_enabled", true);
-    const listener_attached_state = browser.webRequest.onBeforeRequest.hasListener(cancel);
-
-    // If storage says that blocking is enabled when it actually isn't, soft throw an error to the console
-    if (storage_state !== listener_attached_state) {
-        console.error("Mismatch in blocking state according to storage value and listener attached status:", {
-            storage_state,
-            listener_attached_state,
-        });
-    }
-
-    // Rely on the actual listener being attached as the ground source of truth over what storage says
-    return listener_attached_state;
 }
 
 /**

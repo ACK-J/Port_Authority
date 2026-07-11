@@ -36,15 +36,6 @@ export function getBadgeForTab(tabId) {
 }
 
 /**
- * Replace in-memory badge entry for a tab (used when the tab navigates).
- * @param {number|string} tabId
- * @param {BadgeInfo} info
- */
-export function setBadgeForTab(tabId, info) {
-    badges[tabId] = info;
-}
-
-/**
  * Drop all activity for a tab (tab closed).
  * @param {number|string} tabId
  */

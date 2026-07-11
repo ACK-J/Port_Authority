@@ -63,17 +63,26 @@ export const THREATMETRIX_CNAME = {
  * Session-scoped LRU map of hostname → DNS resolve result.
  * Not persisted — avoids a new on-disk privacy surface.
  *
+ * Also tracks in-flight resolves so a request stampede to the same host
+ * (common on SPAs) shares one `browser.dns.resolve` instead of N.
+ *
  * @param {number} [maxSize=256]
  * @returns {{
  *   get: (key: string) => DnsResolveResult | undefined,
  *   set: (key: string, value: DnsResolveResult) => void,
+ *   getInflight: (key: string) => Promise<DnsResolveResult> | undefined,
+ *   setInflight: (key: string, promise: Promise<DnsResolveResult>) => void,
+ *   clearInflight: (key: string) => void,
  *   clear: () => void,
  *   get size(): number,
+ *   get inflightSize(): number,
  * }}
  */
 export function createDnsResultCache(maxSize = 256) {
     /** @type {Map<string, DnsResolveResult>} */
     const map = new Map();
+    /** @type {Map<string, Promise<DnsResolveResult>>} */
+    const inflight = new Map();
 
     return {
         get(key) {
@@ -92,11 +101,24 @@ export function createDnsResultCache(maxSize = 256) {
                 map.delete(oldest);
             }
         },
+        getInflight(key) {
+            return inflight.get(key);
+        },
+        setInflight(key, promise) {
+            inflight.set(key, promise);
+        },
+        clearInflight(key) {
+            inflight.delete(key);
+        },
         clear() {
             map.clear();
+            inflight.clear();
         },
         get size() {
             return map.size;
+        },
+        get inflightSize() {
+            return inflight.size;
         },
     };
 }
@@ -111,7 +133,13 @@ export function createDnsResultCache(maxSize = 256) {
  * @typedef {object} RequestFilterDeps
  * @property {() => Promise<string[]>} getAllowedDomains
  * @property {(hostname: string) => Promise<DnsResolveResult>} resolveDns
- * @property {{ get: (key: string) => DnsResolveResult | undefined, set: (key: string, value: DnsResolveResult) => void }} [dnsCache]
+ * @property {{
+ *   get: (key: string) => DnsResolveResult | undefined,
+ *   set: (key: string, value: DnsResolveResult) => void,
+ *   getInflight?: (key: string) => Promise<DnsResolveResult> | undefined,
+ *   setInflight?: (key: string, promise: Promise<DnsResolveResult>) => void,
+ *   clearInflight?: (key: string) => void,
+ * }} [dnsCache]
  *   Optional in-memory LRU of successful DNS results for this Firefox session.
  */
 
@@ -129,7 +157,8 @@ export function createDnsResultCache(maxSize = 256) {
  */
 
 /**
- * Resolve DNS with optional session cache. Rebinding-like names skip the cache.
+ * Resolve DNS with optional session cache. Rebinding-like names skip the cache
+ * (and in-flight coalescing) so each lookup can observe a rebound answer.
  * @param {string} hostname
  * @param {RequestFilterDeps} deps
  * @param {boolean} skipCache
@@ -138,20 +167,39 @@ export function createDnsResultCache(maxSize = 256) {
 async function resolveWithOptionalCache(hostname, deps, skipCache) {
     const { resolveDns, dnsCache } = deps;
     const useCache = Boolean(dnsCache) && !skipCache;
-    let resolving = useCache ? dnsCache.get(hostname) : undefined;
 
-    if (!resolving) {
-        try {
-            resolving = await resolveDns(hostname);
-        } catch {
-            return { ok: false };
-        }
-        if (useCache) {
-            dnsCache.set(hostname, resolving);
+    if (useCache) {
+        const cached = dnsCache.get(hostname);
+        if (cached) return { ok: true, resolving: cached };
+
+        const pending = dnsCache.getInflight?.(hostname);
+        if (pending) {
+            try {
+                return { ok: true, resolving: await pending };
+            } catch {
+                return { ok: false };
+            }
         }
     }
 
-    return { ok: true, resolving };
+    const resolvePromise = Promise.resolve().then(() => resolveDns(hostname));
+    if (useCache) {
+        dnsCache.setInflight?.(hostname, resolvePromise);
+    }
+
+    try {
+        const resolving = await resolvePromise;
+        if (useCache) {
+            dnsCache.set(hostname, resolving);
+        }
+        return { ok: true, resolving };
+    } catch {
+        return { ok: false };
+    } finally {
+        if (useCache) {
+            dnsCache.clearInflight?.(hostname);
+        }
+    }
 }
 
 /**

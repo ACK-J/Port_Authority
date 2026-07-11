@@ -92,9 +92,7 @@ export async function getItemFromLocal(key, default_value) {
     return navigator.locks.request(STORAGE_LOCK_KEY,
         { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
         async (lock) => {
-            const value = await UNLOCKED_getItemFromLocal(key, default_value);
-            console.debug("Reading storage:", {[key]: value});
-            return value;
+            return UNLOCKED_getItemFromLocal(key, default_value);
         }
     );
 }
@@ -116,7 +114,6 @@ export async function setItemInLocal(key, value) {
     // Acquire lock for write access before updating
     return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
         await browser.storage.local.set({ [key]: stringifiedValue });
-        console.debug("Setting storage:", {[key]: value});
         return value;
     });
 }
@@ -164,13 +161,8 @@ export async function modifyItemInLocal(key, default_value, mutate) {
         // Re-stringify and save the changed value
         await browser.storage.local.set({
             [key]: JSON.stringify(new_value)
-        }); 
-
-        console.debug("Updating storage value: ", key, {
-            ["old " + key]: initial_value,
-            ["new " + key]: new_value
         });
-        
+
         // Return result of modification so can use later
         return new_value;
     });
@@ -358,6 +350,14 @@ export async function resetSessionTabActivity() {
         clearTimeout(tabActivityPersistTimer);
         tabActivityPersistTimer = null;
     }
+    // Wait for any in-flight persist so it cannot rewrite stale data after we clear.
+    if (tabActivityPersistInFlight) {
+        try {
+            await tabActivityPersistInFlight;
+        } catch {
+            // ignore — we're about to overwrite anyway
+        }
+    }
     resetTabActivityMemory();
     await setItemInLocal("badges", {});
     await setItemInLocal("blocked_ports", {});
@@ -428,7 +428,11 @@ export async function increaseBadge(request, isThreatMetrix) {
         return;
     }
 
-    const { counter, shouldNotify } = incrementBadgeCounter(tabId, url);
+    const { counter, shouldNotify } = incrementBadgeCounter(
+        tabId,
+        // Prefer the page URL so navigation cleanup compares against tab URLs.
+        request.originUrl || url
+    );
     updateBadges(counter, tabId);
     scheduleTabActivityPersist();
 

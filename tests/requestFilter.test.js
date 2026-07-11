@@ -552,6 +552,38 @@ export async function run() {
         assertEqual(second.reason, "threatmetrix", "cached CNAME block");
         assertEqual(resolveCount, 1, "CNAME path cached after first resolve");
     }
+    {
+        // Parallel stampede to the same host must share one in-flight resolve
+        const cache = createDnsResultCache();
+        let resolveCount = 0;
+        let release;
+        const gate = new Promise((resolve) => {
+            release = resolve;
+        });
+        const resolveDns = async (hostname) => {
+            resolveCount += 1;
+            await gate;
+            return { addresses: ["203.0.113.1"], canonicalName: hostname };
+        };
+
+        const requests = Promise.all([
+            evaluateRequest(req({ url: "https://cdn.stampede.example/a.js" }), deps({ resolveDns, dnsCache: cache })),
+            evaluateRequest(req({ url: "https://cdn.stampede.example/b.js" }), deps({ resolveDns, dnsCache: cache })),
+            evaluateRequest(req({ url: "https://cdn.stampede.example/c.js" }), deps({ resolveDns, dnsCache: cache })),
+            evaluateRequest(req({ url: "https://cdn.stampede.example/d.js" }), deps({ resolveDns, dnsCache: cache })),
+        ]);
+
+        // Let all four hit the in-flight wait before DNS completes.
+        await new Promise((r) => setTimeout(r, 0));
+        assertEqual(resolveCount, 1, "only one DNS resolve started for parallel stampede");
+        assertEqual(cache.inflightSize, 1, "one in-flight promise tracked");
+        release();
+        const results = await requests;
+        assert(results.every((r) => r.cancel === false), "all stampede requests complete");
+        assertEqual(cache.size, 1, "result cached once");
+        assertEqual(cache.inflightSize, 0, "in-flight cleared after settle");
+        assertEqual(resolveCount, 1, "still a single resolve after stampede");
+    }
 
     suite("DNS failure fails open");
     {
