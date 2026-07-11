@@ -184,3 +184,50 @@ export function isLocalRequestUrl(url) {
 
     return isPrivateAddress(hostname);
 }
+
+/** 0.0.0.0 or :: — common DNS sinkhole answers, not useful scan targets. */
+export function isUnspecifiedAddress(ip) {
+    const normalized = normalizeHostname(ip);
+    if (normalized === "::" || normalized === "0:0:0:0:0:0:0:0") return true;
+
+    const mapped = normalized.includes(":") ? expandIPv6(normalized) : null;
+    if (mapped) {
+        const isV4Mapped =
+            mapped[0] === 0 &&
+            mapped[1] === 0 &&
+            mapped[2] === 0 &&
+            mapped[3] === 0 &&
+            mapped[4] === 0 &&
+            mapped[5] === 0xffff;
+        if (isV4Mapped) {
+            return mapped[6] === 0 && mapped[7] === 0;
+        }
+        return mapped.every((h) => h === 0);
+    }
+
+    const octets = parseIPv4Octets(normalized);
+    return octets !== null && octets.every((o) => o === 0);
+}
+
+/**
+ * Hostnames that embed an IP (or use known local-resolution helpers) are the
+ * practical DNS-rebinding vectors for port scans (e.g. 127.0.0.1.nip.io).
+ * Ordinary domains must not get private-IP DNS blocking — content blockers
+ * sinkhole trackers to 0.0.0.0/127.0.0.1 and would look like "port scans".
+ */
+export function hostnameSuggestsIpRebinding(hostname) {
+    const host = normalizeHostname(hostname);
+    if (host.includes(":")) return false; // literals handled elsewhere
+
+    if (/(?:^|\.)(?:\d{1,3}\.){3}\d{1,3}(?:\.|$)/.test(host)) return true;
+    if (/(?:^|\.)(?:0x[0-9a-f]+|\d{8,10})(?:\.|$)/i.test(host)) return true;
+    if (
+        /(?:^|\.)(?:nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me|lacolhost\.com)$/i.test(
+            host
+        )
+    ) {
+        return true;
+    }
+    return false;
+}
+

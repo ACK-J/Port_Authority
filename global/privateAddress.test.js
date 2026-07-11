@@ -8,6 +8,8 @@ import {
     isLocalRequestUrl,
     isLiteralIpHostname,
     isPrivateAddress,
+    hostnameSuggestsIpRebinding,
+    isUnspecifiedAddress,
 } from "./privateAddress.js";
 
 let passed = 0;
@@ -111,7 +113,7 @@ assertAllow("http://example.com/", "public domain");
 assertAllow("http://localhost.example.com/", "localhost subdomain must not match");
 assertAllow("http://[2001:db8::1]/", "documentation IPv6");
 assertAllow("http://[2001:4860:4860::8888]/", "public IPv6");
-assertAllow("http://127.0.0.1.nip.io/", "public name (blocked later via DNS)");
+assertAllow("http://127.0.0.1.nip.io/", "public name (DNS path gated by rebinding heuristic)");
 
 // --- Protocol filter ---
 assertAllow("chrome://[::1]/", "unsupported protocol");
@@ -144,6 +146,24 @@ assert(isLiteralIpHostname("[::1]") === true, "literal v6 bracketed");
 assert(isLiteralIpHostname("::ffff:7f00:1") === true, "literal mapped");
 assert(isLiteralIpHostname("example.com") === false, "domain not literal");
 assert(isLiteralIpHostname("127.0.0.1.nip.io") === false, "nip.io not literal");
+
+// --- DNS rebinding gating (false-positive prevention) ---
+assert(hostnameSuggestsIpRebinding("csp.withgoogle.com") === false, "google CSP not rebind-like");
+assert(hostnameSuggestsIpRebinding("www.google.com") === false, "google www not rebind-like");
+assert(hostnameSuggestsIpRebinding("example.com") === false, "example.com not rebind-like");
+assert(hostnameSuggestsIpRebinding("127.0.0.1.nip.io") === true, "nip.io rebind");
+assert(hostnameSuggestsIpRebinding("192.168.1.1.sslip.io") === true, "sslip.io rebind");
+assert(hostnameSuggestsIpRebinding("10.0.0.1.attacker.example") === true, "embedded LAN IP");
+assert(hostnameSuggestsIpRebinding("2130706433.example.com") === true, "embedded integer IP");
+assert(hostnameSuggestsIpRebinding("localtest.me") === true, "apex helper domain");
+assert(hostnameSuggestsIpRebinding("foo.localtest.me") === true, "localtest.me helper");
+assert(hostnameSuggestsIpRebinding("nip.io") === true, "apex nip.io");
+
+assert(isUnspecifiedAddress("0.0.0.0") === true, "unspecified v4");
+assert(isUnspecifiedAddress("::") === true, "unspecified v6");
+assert(isUnspecifiedAddress("::ffff:0:0") === true, "unspecified mapped");
+assert(isUnspecifiedAddress("127.0.0.1") === false, "loopback is not unspecified");
+assert(isUnspecifiedAddress("8.8.8.8") === false, "public is not unspecified");
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

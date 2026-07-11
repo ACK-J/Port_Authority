@@ -27,7 +27,8 @@ This addon blocks websites from using javascript to port scan your computer/inte
 - Local address detection uses the URL API and `global/privateAddress.js` rather than matching raw URL strings with a regex
 - Classification covers IPv4 private/loopback/link-local/CGNAT/benchmarking ranges, IPv6 loopback/ULA/link-local, IPv4-mapped and IPv4-compatible IPv6, and the exact `localhost` hostname
 - Alternate IPv4 encodings (integer, hex, octal, short-form) are normalized by the URL parser before range checks
-- Domain names are DNS-resolved (A/AAAA + CNAME) so public names that point at private addresses are blocked
+- DNS private-IP blocking is limited to rebinding-like hostnames (embedded IPs, nip.io/sslip.io/etc.) so content-blocker sinkholes to `0.0.0.0`/`127.0.0.1` are not reported as port scans
+- ThreatMetrix blocking still resolves every third-party hostname for the `online-metrix.net` CNAME check
 - Explanation of the regex used to match ThreatMetrix CNAMEs: https://regex101.com/r/f8LSTx/2
 
 ## Test All Forms of Port Scanning 

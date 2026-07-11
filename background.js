@@ -1,6 +1,7 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
-import { isLocalRequestUrl, isLiteralIpHostname, isPrivateAddress } from "./global/privateAddress.js";
+import { isLocalRequestUrl, isLiteralIpHostname, isPrivateAddress,
+    hostnameSuggestsIpRebinding, isUnspecifiedAddress } from "./global/privateAddress.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -82,10 +83,17 @@ async function cancel(requestDetails) {
         return { cancel: false };
     }
 
-    for (const address of resolving.addresses ?? []) {
-        if (isPrivateAddress(address)) {
-            console.debug("Blocking domain: DNS resolved to private address:", { url, address });
-            return blockPortScan(requestDetails, url);
+    // Only apply private-IP DNS blocking when the hostname itself looks like a
+    // rebinding vector (embedded IP / nip.io / etc). Checking every third-party
+    // name causes mass false positives: ad blockers sinkhole domains to
+    // 0.0.0.0 or 127.0.0.1, which is not a port scan.
+    if (hostnameSuggestsIpRebinding(url.hostname)) {
+        for (const address of resolving.addresses ?? []) {
+            if (isUnspecifiedAddress(address)) continue;
+            if (isPrivateAddress(address)) {
+                console.debug("Blocking domain: DNS resolved to private address:", { url, address });
+                return blockPortScan(requestDetails, url);
+            }
         }
     }
 
