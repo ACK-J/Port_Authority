@@ -68,11 +68,12 @@ export function resetTabActivityForNavigation(tabId, lastURL) {
  * @param {string} port
  * @returns {boolean} true when a new port was recorded
  */
-export function recordBlockedPort(tabId, host, port) {
+export function recordBlockedPort(tabId, host, port, maxPortsPerHost = 100) {
     const tabHosts = blockedPorts[tabId] || (blockedPorts[tabId] = {});
     const ports = tabHosts[host];
     if (Array.isArray(ports)) {
         if (ports.includes(port)) return false;
+        if (ports.length >= maxPortsPerHost) return false;
         tabHosts[host] = ports.concat([port]);
     } else {
         tabHosts[host] = [port];
@@ -86,9 +87,10 @@ export function recordBlockedPort(tabId, host, port) {
  * @param {string} host
  * @returns {boolean} true when a new host was recorded
  */
-export function recordBlockedTrackingHost(tabId, host) {
+export function recordBlockedTrackingHost(tabId, host, maxHostsPerTab = 200) {
     const list = blockedHosts[tabId] || (blockedHosts[tabId] = []);
     if (list.includes(host)) return false;
+    if (list.length >= maxHostsPerTab) return false;
     blockedHosts[tabId] = list.concat([host]);
     return true;
 }

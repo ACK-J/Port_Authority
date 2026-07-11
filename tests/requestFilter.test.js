@@ -584,6 +584,31 @@ export async function run() {
         assertEqual(cache.inflightSize, 0, "in-flight cleared after settle");
         assertEqual(resolveCount, 1, "still a single resolve after stampede");
     }
+    {
+        // Failed resolves must clear in-flight so later requests can retry
+        const cache = createDnsResultCache();
+        let resolveCount = 0;
+        const resolveDns = async () => {
+            resolveCount += 1;
+            if (resolveCount === 1) throw new Error("TEMP_FAILURE");
+            return { addresses: ["203.0.113.1"], canonicalName: "cdn.retry.example" };
+        };
+
+        const first = await evaluateRequest(
+            req({ url: "https://cdn.retry.example/a.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(first.reason, "dns-failure", "first attempt fails open");
+        assertEqual(cache.inflightSize, 0, "inflight cleared after failure");
+        assertEqual(cache.size, 0, "failures are not cached");
+
+        const second = await evaluateRequest(
+            req({ url: "https://cdn.retry.example/b.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(second.cancel, false, "retry after failure succeeds");
+        assertEqual(resolveCount, 2, "second request re-resolves after failure");
+    }
 
     suite("DNS failure fails open");
     {

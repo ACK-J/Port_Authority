@@ -52,6 +52,20 @@ export async function run() {
         assertEqual(snap.badges[3], undefined, "badges cleared");
     }
 
+    suite("tabActivity caps prevent unbounded growth");
+    {
+        resetTabActivityMemory();
+        for (let i = 0; i < 250; i++) {
+            recordBlockedTrackingHost(1, `h${i}.example`, 200);
+        }
+        assertEqual(getTabActivitySnapshot().blocked_hosts[1].length, 200, "host list capped");
+
+        for (let p = 0; p < 150; p++) {
+            recordBlockedPort(1, "10.0.0.1", String(p), 100);
+        }
+        assertEqual(getTabActivitySnapshot().blocked_ports[1]["10.0.0.1"].length, 100, "ports per host capped");
+    }
+
     suite("tabActivity navigation reset");
     {
         resetTabActivityMemory();

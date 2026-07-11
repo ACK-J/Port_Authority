@@ -182,7 +182,35 @@ async function resolveWithOptionalCache(hostname, deps, skipCache) {
         }
     }
 
-    const resolvePromise = Promise.resolve().then(() => resolveDns(hostname));
+    // Bound hung resolver waits so cancel()/inflight maps cannot pin request
+    // details indefinitely if dns.resolve never settles.
+    const DNS_TIMEOUT_MS = 8000;
+    const resolvePromise = new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error("dns-timeout"));
+        }, DNS_TIMEOUT_MS);
+
+        Promise.resolve()
+            .then(() => resolveDns(hostname))
+            .then(
+                (value) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve(value);
+                },
+                (error) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    reject(error);
+                }
+            );
+    });
+
     if (useCache) {
         dnsCache.setInflight?.(hostname, resolvePromise);
     }

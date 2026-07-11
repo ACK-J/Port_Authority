@@ -19,10 +19,16 @@ const STORAGE_LOCK_KEY = "port_authority_storage_lock";
 /** Coalesce hot-path activity writes so blocked-request storms cannot queue lock work. */
 const TAB_ACTIVITY_PERSIST_MS = 75;
 
+/** Defensive caps so a pathological page cannot grow per-tab maps without bound. */
+const MAX_BLOCKED_HOSTS_PER_TAB = 200;
+const MAX_PORTS_PER_HOST = 100;
+
 /** @type {ReturnType<typeof setTimeout> | null} */
 let tabActivityPersistTimer = null;
 /** @type {Promise<void> | null} */
 let tabActivityPersistInFlight = null;
+/** Bumped to invalidate in-flight persists that started before a session reset. */
+let tabActivityPersistEpoch = 0;
 
 /** @type {string[] | undefined} */
 let allowedDomainListCache;
@@ -298,11 +304,19 @@ export function applyStorageChangesToCaches(changes) {
     }
 }
 
+function clearTabActivityPersistTimer() {
+    if (tabActivityPersistTimer !== null) {
+        clearTimeout(tabActivityPersistTimer);
+        tabActivityPersistTimer = null;
+    }
+}
+
 function scheduleTabActivityPersist() {
     if (tabActivityPersistTimer !== null) return;
     tabActivityPersistTimer = setTimeout(() => {
         tabActivityPersistTimer = null;
-        tabActivityPersistInFlight = persistTabActivityNow().finally(() => {
+        const epoch = tabActivityPersistEpoch;
+        tabActivityPersistInFlight = persistTabActivityNow(epoch).finally(() => {
             tabActivityPersistInFlight = null;
         });
     }, TAB_ACTIVITY_PERSIST_MS);
@@ -313,18 +327,23 @@ function scheduleTabActivityPersist() {
  * @returns {Promise<void>}
  */
 export async function flushTabActivity() {
-    if (tabActivityPersistTimer !== null) {
-        clearTimeout(tabActivityPersistTimer);
-        tabActivityPersistTimer = null;
-    }
+    clearTabActivityPersistTimer();
     if (tabActivityPersistInFlight) {
         await tabActivityPersistInFlight;
     }
-    await persistTabActivityNow();
+    // A mutation during the await may have armed a new debounce timer — drop it
+    // and write the latest snapshot once.
+    clearTabActivityPersistTimer();
+    await persistTabActivityNow(tabActivityPersistEpoch);
 }
 
-async function persistTabActivityNow() {
+async function persistTabActivityNow(epoch = tabActivityPersistEpoch) {
+    // Skip stale writers that began before a session reset.
+    if (epoch !== tabActivityPersistEpoch) return;
+
     const snapshot = getTabActivitySnapshot();
+    if (epoch !== tabActivityPersistEpoch) return;
+
     // One exclusive lock section would be nicer, but existing helpers already
     // serialize via STORAGE_LOCK_KEY — three quick writes beat N per-request writes.
     await setItemInLocal("badges", snapshot.badges);
@@ -346,11 +365,11 @@ export function clearTabActivityData(tabId) {
  * Prevents stale/corrupt per-tab blobs from prior sessions from accumulating (#52).
  */
 export async function resetSessionTabActivity() {
-    if (tabActivityPersistTimer !== null) {
-        clearTimeout(tabActivityPersistTimer);
-        tabActivityPersistTimer = null;
-    }
-    // Wait for any in-flight persist so it cannot rewrite stale data after we clear.
+    clearTabActivityPersistTimer();
+    // Invalidate any in-flight writer so it cannot resurrect stale maps after clear.
+    tabActivityPersistEpoch += 1;
+    const epoch = tabActivityPersistEpoch;
+
     if (tabActivityPersistInFlight) {
         try {
             await tabActivityPersistInFlight;
@@ -358,7 +377,13 @@ export async function resetSessionTabActivity() {
             // ignore — we're about to overwrite anyway
         }
     }
+
+    // Drop timers armed by mutations while we awaited the prior persist.
+    clearTabActivityPersistTimer();
     resetTabActivityMemory();
+
+    if (epoch !== tabActivityPersistEpoch) return;
+
     await setItemInLocal("badges", {});
     await setItemInLocal("blocked_ports", {});
     await setItemInLocal("blocked_hosts", {});
@@ -389,7 +414,7 @@ export function addBlockedPortToHost(url, tabIdString) {
     const host = url.host.split(":")[0]; // TODO replace with more robust method to get host, this might act funky around IPv6 addresses
     const port = "" + (url.port || getPortForProtocol(url.protocol));
 
-    const changed = recordBlockedPort(tabId, host, port);
+    const changed = recordBlockedPort(tabId, host, port, MAX_PORTS_PER_HOST);
     if (changed) scheduleTabActivityPersist();
     return changed;
 }
@@ -405,7 +430,7 @@ export function addBlockedTrackingHost(url, tabIdString) {
     if (Number.isNaN(tabId) || tabId < 0) return false;
 
     const host = url.host;
-    const changed = recordBlockedTrackingHost(tabId, host);
+    const changed = recordBlockedTrackingHost(tabId, host, MAX_BLOCKED_HOSTS_PER_TAB);
     if (changed) scheduleTabActivityPersist();
     return changed;
 }
