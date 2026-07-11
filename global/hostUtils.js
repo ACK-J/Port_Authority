@@ -1,5 +1,42 @@
 const IPV4_PATTERN = /^(?:\d{1,3}\.){3}\d{1,3}$/;
 
+function hostnameFromHost(host) {
+    try {
+        return new URL(`http://${host}/`).hostname;
+    } catch {
+        return host;
+    }
+}
+
+/**
+ * Treat localhost hostnames as 127.0.0.1 for allowlist comparisons.
+ * @param {string} hostname
+ */
+function normalizeLoopbackHostname(hostname) {
+    const bare = hostname.replace(/^\[|\]$/g, "").toLowerCase().replace(/\.$/, "");
+    if (bare === "localhost") {
+        return "127.0.0.1";
+    }
+    return bare;
+}
+
+/**
+ * Returns whether an allowlist entry refers to an IP address or CIDR range.
+ * @param {string} entry
+ */
+export function isIPOrCIDREntry(entry) {
+    if (isCIDRAllowlistEntry(entry)) {
+        return true;
+    }
+
+    try {
+        const entryUrl = new URL(`http://${entry}/`);
+        return entryUrl.host === entryUrl.hostname && isIPAddress(entryUrl.hostname);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Returns whether a URL hostname represents an IP address (IPv4 or IPv6).
  * @param {string} hostname A URL.hostname value (IPv6 may include brackets)
@@ -99,12 +136,7 @@ export function hostMatchesAllowlistEntry(originHost, allowlistEntry) {
     }
 
     if (isCIDRAllowlistEntry(allowlistEntry)) {
-        let originHostname;
-        try {
-            originHostname = new URL(`http://${originHost}/`).hostname;
-        } catch {
-            return false;
-        }
+        const originHostname = normalizeLoopbackHostname(hostnameFromHost(originHost));
         return ipInCIDR(originHostname, allowlistEntry);
     }
 
@@ -117,11 +149,36 @@ export function hostMatchesAllowlistEntry(originHost, allowlistEntry) {
         return false;
     }
 
+    const originHostname = normalizeLoopbackHostname(originUrl.hostname);
+    const entryHostname = normalizeLoopbackHostname(entryUrl.hostname);
+
     if (entryUrl.host === entryUrl.hostname && isIPAddress(entryUrl.hostname)) {
-        return originUrl.hostname === entryUrl.hostname;
+        return originHostname === entryHostname;
     }
 
     return false;
+}
+
+/**
+ * Returns whether a request should bypass blocking based on the allowlist.
+ * Domain entries only match the page origin. IP and CIDR entries also match
+ * local/private scan destinations so trusted addresses can be reached.
+ * @param {string} originHost A URL.host value from the request origin
+ * @param {string|null|undefined} requestHost A URL.host value for the request target
+ * @param {string[]} allowlist
+ */
+export function requestMatchesAllowlist(originHost, requestHost, allowlist) {
+    return allowlist.some((entry) => {
+        if (hostMatchesAllowlistEntry(originHost, entry)) {
+            return true;
+        }
+
+        if (!requestHost || !isIPOrCIDREntry(entry)) {
+            return false;
+        }
+
+        return hostMatchesAllowlistEntry(requestHost, entry);
+    });
 }
 
 function ipv4ToInt(ip) {

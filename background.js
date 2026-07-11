@@ -1,6 +1,6 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
-import { hostMatchesAllowlistEntry } from "./global/hostUtils.js";
+import { requestMatchesAllowlist } from "./global/hostUtils.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -38,12 +38,24 @@ async function cancel(requestDetails) {
         return { cancel: false }; // invalid origin
     }
     const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-    // Exact match for domains; IP entries without a port match any port on that address
-    const domainIsWhiteListed = allowed_domains_list.some(
-        (entry) => hostMatchesAllowlistEntry(check_allowed_url.host, entry)
+
+    let requestHost;
+    try {
+        requestHost = new URL(requestDetails.url).host;
+    } catch {
+        requestHost = null;
+    }
+
+    const requestIsAllowlisted = requestMatchesAllowlist(
+        check_allowed_url.host,
+        requestHost,
+        allowed_domains_list
     );
-    if (domainIsWhiteListed){
-        console.debug("Aborted filtering on host due to whitelist: ", check_allowed_url);
+    if (requestIsAllowlisted){
+        console.debug("Aborted filtering on host due to whitelist: ", {
+            origin: check_allowed_url,
+            requestHost
+        });
         return { cancel: false };
     }
 
