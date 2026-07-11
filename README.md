@@ -18,7 +18,7 @@ This addon blocks websites from using javascript to port scan your computer/inte
 3. Easily auditable, with the core functionality being about 250 lines of code. [HERE](https://github.com/ACK-J/Port_Authority/blob/main/background.js)
 4. Provides an optional whitelist to prevent portscans and tracking scripts from being blocked on trusted domains
 5. Gives a nice notification when one of the above scenarios are blocked
-6. This addon doesn't store/transmit/log any data or metadata about you or your requests... because, ya know, privacy
+6. This addon doesn't store or log browsing history. Blocking decisions stay in memory for the current browser session (badge counters / blocked host lists per tab). To decide whether a third-party host is a LexisNexis/ThreatMetrix endpoint, the addon may issue a DNS CNAME lookup via Firefox's `dns` API for hosts that are not already on the known ThreatMetrix suffix list; results are cached in memory for the session only and are never written to disk or sent to any Port Authority server.
 
 ## Donations
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
@@ -28,8 +28,11 @@ This addon blocks websites from using javascript to port scan your computer/inte
 - Classification covers IPv4 private/loopback/link-local/CGNAT/benchmarking ranges, IPv6 loopback/ULA/link-local, IPv4-mapped and IPv4-compatible IPv6, and the exact `localhost` hostname
 - Alternate IPv4 encodings (integer, hex, octal, short-form) are normalized by the URL parser before range checks
 - DNS private-IP blocking is limited to rebinding-like hostnames (embedded IPs, nip.io/sslip.io/etc.) so content-blocker sinkholes to `0.0.0.0`/`127.0.0.1` are not reported as port scans
-- ThreatMetrix blocking still resolves every third-party hostname for the `online-metrix.net` CNAME check
-- Explanation of the regex used to match ThreatMetrix CNAMEs: matches `online-metrix.net` and its subdomains only (`(?:^|\.)online-metrix[.]net$`)
+- ThreatMetrix blocking uses an explicit, auditable suffix list (`online-metrix.net`, `threatmetrix.com`, `lexisnexisrisk.com`, `lnrsoftware.com`) matched against both the request hostname and any DNS canonical name
+- Hostnames that already match that list are blocked without a DNS lookup
+- Other third-party hosts may still be CNAME-checked once per hostname per session via an in-memory LRU; rebinding-like names skip the cache so a later private answer is not masked
+- Hostname compares strip trailing dots so FQDN forms like `h.online-metrix.net.` still match
+- Transient DNS failures fail open (request allowed) after an explicit catch; known ThreatMetrix suffixes do not depend on DNS and are still blocked
 
 ## Automated Tests
 
@@ -80,9 +83,9 @@ Back in May of 2020 eBay got [caught port scanning their customers](https://null
 - The script collects 416 pieces of personally identifiable information about you and your network. ( Shown [HERE](https://gist.github.com/ACK-J/aa8dceb072d31d97a4e7fe0ef389f370) )
 - They talk about trying to bypass adblockers by using encryption in their customer onboarding documentation [HERE](https://resource.payrix.com/resources/implementation-lexisnexis-threatmetrix-web)
 
-So I developed multiple ways to stop this. The first being the existing functionality built into Port Authority. By default, Port Authority will check the sites that your browser reaches out to, and if it redirects to Lexis Nexis' infrastructure, it will be blocked, and you will receive a notification. The second is a Python script I wrote which uses Shodan to find all of Lexis Nexis' customer-specific domains on the internet [HERE](https://gist.github.com/ACK-J/7a2da401c732cbe58479d03acc4e4b43). You can add the script's output to a blocker such as uBlockOrigin to prevent your computer from connecting to them.
+So I developed multiple ways to stop this. The first being the existing functionality built into Port Authority. By default, Port Authority blocks requests whose hostname (or DNS canonical name) is under known Lexis Nexis / ThreatMetrix infrastructure, and you will receive a notification. Customer-specific domains that CNAME into that infrastructure are still caught via a session-cached DNS lookup. The second is a Python script I wrote which uses Shodan to find all of Lexis Nexis' customer-specific domains on the internet [HERE](https://gist.github.com/ACK-J/7a2da401c732cbe58479d03acc4e4b43). You can add the script's output to a blocker such as uBlockOrigin to prevent your computer from connecting to them.
 
-**Note:** This second method will never include every customer-specific endpoint, so you are better off using the dynamic blocking built into Port Authority which WILL block every customer-specific endpoint Lexis Nexis uses.
+**Note:** Static blocklists will never include every customer-specific endpoint. Port Authority's dynamic CNAME check covers hosts that resolve into the known Lexis Nexis / ThreatMetrix suffix list; endpoints fronted only by unrelated CDN names without those suffixes may still require a complementary filter-list entry.
 
 ## Reverse Engineering
 Most of these sites are using Lexis Nexis's Threat Metrix scripts, Dan Nemec has a great blog post reverse engineering the script and showing all the invasive data collected https://blog.nem.ec/2020/05/24/ebay-port-scanning/
@@ -97,6 +100,7 @@ Zachary Hampton wrote some tools to reverse engineer the ThreatMetrix scripts. G
 # WARNING
 USING SOCKS5 PROXIES WITH THIS ADDON WILL CAUSE DNS LEAKS DUE TO HOW FIREFOX HANDLES CNAME LOOKUPS. FOR MORE INFORMATION SEE HERE https://github.com/ACK-J/Port_Authority/issues/7#issue-925519591
 - There is a simple fix for this. Type `about:config` in your browser, accept the warning, search for `network.trr.mode` and change it to `3`
+- Hosts already on the known ThreatMetrix suffix list are blocked without an extra DNS query; other third-party hosts may still trigger one session-cached CNAME lookup each while blocking is enabled.
 
 # ToDo:
 - Port to Chromium

@@ -42,9 +42,21 @@ export async function run() {
     const background = readText("background.js");
     assert(background.includes('from "./global/requestFilter.js"'), "imports requestFilter");
     assert(background.includes("evaluateRequest"), "calls evaluateRequest");
+    assert(background.includes("createDnsResultCache"), "creates session DNS cache");
+    assert(background.includes("dnsCache"), "passes dnsCache to evaluateRequest");
     assert(background.includes("toggleEnabled"), "handles toggle messages");
     assert(background.includes("onBeforeRequest"), "registers webRequest listener");
     assert(background.includes("allowed_domain_list"), "reads allowlist from storage");
+
+    suite("requestFilter.js ThreatMetrix remediation surface");
+    const requestFilter = readText("global/requestFilter.js");
+    assert(requestFilter.includes("THREATMETRIX_SUFFIXES"), "exports auditable suffix list");
+    assert(requestFilter.includes("matchesThreatMetrixHost"), "exports host matcher");
+    assert(requestFilter.includes("createDnsResultCache"), "exports DNS LRU helper");
+    assert(requestFilter.includes("threatmetrix.com"), "lists threatmetrix.com");
+    assert(requestFilter.includes("lexisnexisrisk.com"), "lists lexisnexisrisk.com");
+    assert(requestFilter.includes("lnrsoftware.com"), "lists lnrsoftware.com");
+    assert(requestFilter.includes("normalizeHostname"), "normalizes trailing-dot hostnames");
 
     suite("settings.js uses shared allowlist helper");
     const settings = readText("settings/settings.js");

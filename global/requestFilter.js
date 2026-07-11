@@ -10,8 +10,96 @@ import {
     isUnspecifiedAddress,
 } from "./privateAddress.js";
 
-/** Matches ThreatMetrix CNAME targets (online-metrix.net and its subdomains only). */
-export const THREATMETRIX_CNAME = /(?:^|\.)online-metrix[.]net$/i;
+/**
+ * LexisNexis / ThreatMetrix infrastructure suffixes.
+ * Auditable list — prefer appending verified domains here over regex sprawl.
+ * Matched as exact host or subdomain via {@link matchesThreatMetrixHost}.
+ */
+export const THREATMETRIX_SUFFIXES = Object.freeze([
+    "online-metrix.net",
+    "threatmetrix.com",
+    "lexisnexisrisk.com",
+    "lnrsoftware.com",
+]);
+
+/**
+ * Strip trailing dots (FQDN form) and lowercase for stable suffix compares.
+ * browser.dns.resolve may or may not normalize trailing dots; do not rely on it.
+ * @param {string} hostname
+ * @returns {string}
+ */
+export function normalizeHostname(hostname) {
+    return String(hostname ?? "").replace(/\.+$/u, "").toLowerCase();
+}
+
+/**
+ * True when hostname is one of {@link THREATMETRIX_SUFFIXES} or a subdomain thereof.
+ * @param {string} hostname
+ * @returns {boolean}
+ */
+export function matchesThreatMetrixHost(hostname) {
+    const host = normalizeHostname(hostname);
+    if (!host) return false;
+
+    for (const suffix of THREATMETRIX_SUFFIXES) {
+        if (host === suffix || host.endsWith(`.${suffix}`)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @deprecated Prefer {@link matchesThreatMetrixHost} / {@link THREATMETRIX_SUFFIXES}.
+ * Kept as a thin wrapper for any external callers of the old regex export.
+ */
+export const THREATMETRIX_CNAME = {
+    test(value) {
+        return matchesThreatMetrixHost(value);
+    },
+};
+
+/**
+ * Session-scoped LRU map of hostname → DNS resolve result.
+ * Not persisted — avoids a new on-disk privacy surface.
+ *
+ * @param {number} [maxSize=256]
+ * @returns {{
+ *   get: (key: string) => DnsResolveResult | undefined,
+ *   set: (key: string, value: DnsResolveResult) => void,
+ *   clear: () => void,
+ *   get size(): number,
+ * }}
+ */
+export function createDnsResultCache(maxSize = 256) {
+    /** @type {Map<string, DnsResolveResult>} */
+    const map = new Map();
+
+    return {
+        get(key) {
+            if (!map.has(key)) return undefined;
+            const value = map.get(key);
+            // Refresh insertion order (most-recently used at the end).
+            map.delete(key);
+            map.set(key, value);
+            return value;
+        },
+        set(key, value) {
+            if (map.has(key)) map.delete(key);
+            map.set(key, value);
+            while (map.size > maxSize) {
+                const oldest = map.keys().next().value;
+                map.delete(oldest);
+            }
+        },
+        clear() {
+            map.clear();
+        },
+        get size() {
+            return map.size;
+        },
+    };
+}
 
 /**
  * @typedef {object} DnsResolveResult
@@ -23,6 +111,8 @@ export const THREATMETRIX_CNAME = /(?:^|\.)online-metrix[.]net$/i;
  * @typedef {object} RequestFilterDeps
  * @property {() => Promise<string[]>} getAllowedDomains
  * @property {(hostname: string) => Promise<DnsResolveResult>} resolveDns
+ * @property {{ get: (key: string) => DnsResolveResult | undefined, set: (key: string, value: DnsResolveResult) => void }} [dnsCache]
+ *   Optional in-memory LRU of successful DNS results for this Firefox session.
  */
 
 /**
@@ -53,7 +143,7 @@ export const THREATMETRIX_CNAME = /(?:^|\.)online-metrix[.]net$/i;
  * @returns {Promise<FilterAllow | FilterBlock>}
  */
 export async function evaluateRequest(requestDetails, deps) {
-    const { getAllowedDomains, resolveDns } = deps;
+    const { getAllowedDomains, resolveDns, dnsCache } = deps;
 
     if (!requestDetails.thirdParty) {
         return { cancel: false, reason: "first-party" };
@@ -87,12 +177,29 @@ export async function evaluateRequest(requestDetails, deps) {
         return { cancel: false, reason: "literal-ip" };
     }
 
-    let resolving;
-    try {
-        resolving = await resolveDns(url.hostname);
-    } catch {
-        // Fail open — temporary DNS failures must not break browsing.
-        return { cancel: false, reason: "dns-failure" };
+    // Known LexisNexis / ThreatMetrix hosts: block without a DNS side-channel.
+    if (matchesThreatMetrixHost(url.hostname)) {
+        return { cancel: true, reason: "threatmetrix", url };
+    }
+
+    // DNS is still needed for (1) rebinding-like private A/AAAA answers and
+    // (2) customer-specific CNAMEs into ThreatMetrix infrastructure.
+    // Rebinding-like names skip the session cache so a later private answer
+    // is not masked by an earlier public one.
+    const useCache = Boolean(dnsCache) && !hostnameSuggestsIpRebinding(url.hostname);
+    let resolving = useCache ? dnsCache.get(url.hostname) : undefined;
+
+    if (!resolving) {
+        try {
+            resolving = await resolveDns(url.hostname);
+        } catch {
+            // Explicit fail-open: a resolver outage must not break browsing.
+            // Known ThreatMetrix suffixes are already handled without DNS above.
+            return { cancel: false, reason: "dns-failure" };
+        }
+        if (useCache) {
+            dnsCache.set(url.hostname, resolving);
+        }
     }
 
     // Only treat private DNS answers as port scans for rebinding-like names.
@@ -106,7 +213,7 @@ export async function evaluateRequest(requestDetails, deps) {
         }
     }
 
-    if (THREATMETRIX_CNAME.test(resolving.canonicalName ?? "")) {
+    if (matchesThreatMetrixHost(resolving.canonicalName ?? "")) {
         return { cancel: true, reason: "threatmetrix", url };
     }
 

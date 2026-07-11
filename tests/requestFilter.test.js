@@ -1,7 +1,14 @@
 /**
  * Exhaustive coverage of evaluateRequest decision paths used by background.js.
  */
-import { evaluateRequest, THREATMETRIX_CNAME } from "../global/requestFilter.js";
+import {
+    evaluateRequest,
+    THREATMETRIX_CNAME,
+    THREATMETRIX_SUFFIXES,
+    matchesThreatMetrixHost,
+    normalizeHostname,
+    createDnsResultCache,
+} from "../global/requestFilter.js";
 import { suite, assert, assertEqual } from "./harness.js";
 
 function req(overrides = {}) {
@@ -219,14 +226,89 @@ export async function run() {
         assertEqual(result.cancel, true, "rebinding name blocked when any private answer remains");
     }
 
-    suite("ThreatMetrix CNAME blocking");
-    assert(THREATMETRIX_CNAME.test("online-metrix.net") === true, "apex online-metrix.net");
-    assert(THREATMETRIX_CNAME.test("h.online-metrix.net") === true, "subdomain online-metrix.net");
-    assert(THREATMETRIX_CNAME.test("CUSTOMER.online-metrix.net") === true, "case insensitive");
-    assert(THREATMETRIX_CNAME.test("evil-online-metrix.net") === false, "suffix lookalike rejected");
-    assert(THREATMETRIX_CNAME.test("online-metrix.net.evil.com") === false, "appended domain rejected");
-    assert(THREATMETRIX_CNAME.test("example.com") === false, "ordinary domain");
+    suite("ThreatMetrix suffix matching (host + CNAME, trailing-dot safe)");
+    assert(Array.isArray(THREATMETRIX_SUFFIXES), "suffix list is an array");
+    assert(THREATMETRIX_SUFFIXES.includes("online-metrix.net"), "includes online-metrix.net");
+    assert(THREATMETRIX_SUFFIXES.includes("threatmetrix.com"), "includes threatmetrix.com");
+    assert(THREATMETRIX_SUFFIXES.includes("lexisnexisrisk.com"), "includes lexisnexisrisk.com");
+    assert(THREATMETRIX_SUFFIXES.includes("lnrsoftware.com"), "includes lnrsoftware.com");
 
+    assertEqual(normalizeHostname("H.Online-Metrix.NET."), "h.online-metrix.net", "normalize strips trailing dots + lowercases");
+    assertEqual(normalizeHostname("example.com"), "example.com", "normalize leaves bare host");
+
+    const positiveHosts = [
+        "online-metrix.net",
+        "h.online-metrix.net",
+        "CUSTOMER.online-metrix.net",
+        "h-us.online-metrix.net.",
+        "threatmetrix.com",
+        "api.threatmetrix.com",
+        "lexisnexisrisk.com",
+        "foo.lexisnexisrisk.com.",
+        "lnrsoftware.com",
+        "cdn.lnrsoftware.com",
+    ];
+    for (const host of positiveHosts) {
+        assert(matchesThreatMetrixHost(host) === true, `match ThreatMetrix host ${host}`);
+        assert(THREATMETRIX_CNAME.test(host) === true, `compat wrapper matches ${host}`);
+    }
+
+    const negativeHosts = [
+        "evil-online-metrix.net",
+        "online-metrix.net.evil.com",
+        "notthreatmetrix.com",
+        "example.com",
+        "metrix.net",
+        "",
+    ];
+    for (const host of negativeHosts) {
+        assert(matchesThreatMetrixHost(host) === false, `reject lookalike ${JSON.stringify(host)}`);
+    }
+
+    {
+        // Direct host match — no DNS
+        let dnsCalled = false;
+        const result = await evaluateRequest(
+            req({ url: "https://api.threatmetrix.com/" }),
+            deps({
+                resolveDns: async () => {
+                    dnsCalled = true;
+                    return { addresses: ["203.0.113.1"], canonicalName: "api.threatmetrix.com" };
+                },
+            })
+        );
+        assertEqual(result.cancel, true, "threatmetrix.com host blocked");
+        assertEqual(result.reason, "threatmetrix", "threatmetrix reason for direct host");
+        assert(dnsCalled === false, "DNS skipped for known ThreatMetrix host");
+    }
+    {
+        let dnsCalled = false;
+        const result = await evaluateRequest(
+            req({ url: "https://h-us.online-metrix.net/script.js" }),
+            deps({
+                resolveDns: async () => {
+                    dnsCalled = true;
+                    return { addresses: [], canonicalName: "" };
+                },
+            })
+        );
+        assertEqual(result.cancel, true, "online-metrix.net host blocked without DNS");
+        assert(dnsCalled === false, "no DNS for online-metrix.net host");
+    }
+    {
+        let dnsCalled = false;
+        const result = await evaluateRequest(
+            req({ url: "https://portal.lexisnexisrisk.com/" }),
+            deps({
+                resolveDns: async () => {
+                    dnsCalled = true;
+                    return { addresses: [], canonicalName: "" };
+                },
+            })
+        );
+        assertEqual(result.cancel, true, "lexisnexisrisk.com host blocked without DNS");
+        assert(dnsCalled === false, "no DNS for lexisnexisrisk.com host");
+    }
     {
         const result = await evaluateRequest(
             req({ url: "https://cdn.customer-brand.com/tmx.js" }),
@@ -239,6 +321,32 @@ export async function run() {
         );
         assertEqual(result.cancel, true, "ThreatMetrix CNAME blocked");
         assertEqual(result.reason, "threatmetrix", "threatmetrix reason");
+    }
+    {
+        // Trailing-dot canonical name must still match
+        const result = await evaluateRequest(
+            req({ url: "https://cdn.customer-brand.com/tmx.js" }),
+            deps({
+                resolveDns: async () => ({
+                    addresses: ["203.0.113.10"],
+                    canonicalName: "abc123.online-metrix.net.",
+                }),
+            })
+        );
+        assertEqual(result.cancel, true, "trailing-dot CNAME still blocked");
+        assertEqual(result.reason, "threatmetrix", "trailing-dot threatmetrix reason");
+    }
+    {
+        const result = await evaluateRequest(
+            req({ url: "https://cdn.customer-brand.com/tmx.js" }),
+            deps({
+                resolveDns: async () => ({
+                    addresses: ["203.0.113.10"],
+                    canonicalName: "edge.threatmetrix.com.",
+                }),
+            })
+        );
+        assertEqual(result.cancel, true, "threatmetrix.com CNAME blocked");
     }
     {
         // Rebinding check runs before ThreatMetrix; private rebind wins
@@ -268,6 +376,93 @@ export async function run() {
         assertEqual(result.reason, "threatmetrix", "TMX reason when public A");
     }
 
+    suite("DNS result LRU cache");
+    {
+        const cache = createDnsResultCache(2);
+        let resolveCount = 0;
+        const resolveDns = async (hostname) => {
+            resolveCount += 1;
+            return { addresses: ["203.0.113.1"], canonicalName: hostname };
+        };
+
+        await evaluateRequest(
+            req({ url: "https://cdn.a.example/x.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        await evaluateRequest(
+            req({ url: "https://cdn.a.example/y.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(resolveCount, 1, "second request to same host uses cache");
+        assertEqual(cache.size, 1, "cache holds one entry");
+
+        await evaluateRequest(
+            req({ url: "https://cdn.b.example/x.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        await evaluateRequest(
+            req({ url: "https://cdn.c.example/x.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(cache.size, 2, "LRU max size enforced");
+        assertEqual(resolveCount, 3, "three distinct hosts resolved");
+
+        // a.example was evicted; resolving again increments count
+        await evaluateRequest(
+            req({ url: "https://cdn.a.example/z.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(resolveCount, 4, "evicted host re-resolves");
+    }
+    {
+        // Rebinding-like hosts must not use the cache
+        const cache = createDnsResultCache();
+        let resolveCount = 0;
+        const resolveDns = async () => {
+            resolveCount += 1;
+            return {
+                addresses: resolveCount === 1 ? ["8.8.8.8"] : ["127.0.0.1"],
+                canonicalName: "127.0.0.1.nip.io",
+            };
+        };
+
+        const first = await evaluateRequest(
+            req({ url: "http://127.0.0.1.nip.io/" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        const second = await evaluateRequest(
+            req({ url: "http://127.0.0.1.nip.io/" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(first.cancel, false, "first public answer allowed");
+        assertEqual(second.cancel, true, "second private answer blocked (no cache)");
+        assertEqual(resolveCount, 2, "rebinding host resolved twice");
+        assertEqual(cache.size, 0, "rebinding hosts not stored in cache");
+    }
+    {
+        // Cached ThreatMetrix CNAME decision reused
+        const cache = createDnsResultCache();
+        let resolveCount = 0;
+        const resolveDns = async () => {
+            resolveCount += 1;
+            return {
+                addresses: ["203.0.113.10"],
+                canonicalName: "cust.online-metrix.net",
+            };
+        };
+        const first = await evaluateRequest(
+            req({ url: "https://branded-tracker.example/a.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        const second = await evaluateRequest(
+            req({ url: "https://branded-tracker.example/b.js" }),
+            deps({ resolveDns, dnsCache: cache })
+        );
+        assertEqual(first.reason, "threatmetrix", "first CNAME block");
+        assertEqual(second.reason, "threatmetrix", "cached CNAME block");
+        assertEqual(resolveCount, 1, "CNAME path cached after first resolve");
+    }
+
     suite("DNS failure fails open");
     {
         const result = await evaluateRequest(
@@ -280,6 +475,19 @@ export async function run() {
         );
         assertEqual(result.cancel, false, "DNS failure fails open");
         assertEqual(result.reason, "dns-failure", "dns-failure reason");
+    }
+    {
+        // Known suffix still blocked even if resolveDns would throw
+        const result = await evaluateRequest(
+            req({ url: "https://api.threatmetrix.com/" }),
+            deps({
+                resolveDns: async () => {
+                    throw new Error("should not be called");
+                },
+            })
+        );
+        assertEqual(result.cancel, true, "known suffix blocked without DNS on failure path");
+        assertEqual(result.reason, "threatmetrix", "threatmetrix without DNS");
     }
 
     suite("clean public third-party requests");
@@ -314,5 +522,18 @@ export async function run() {
         );
         assertEqual(result.cancel, false, "allowlist bypasses threatmetrix");
         assertEqual(result.reason, "allowlisted", "allowlisted before DNS");
+    }
+    {
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://bank.example/",
+                url: "https://api.threatmetrix.com/",
+            }),
+            deps({
+                getAllowedDomains: async () => ["bank.example"],
+            })
+        );
+        assertEqual(result.cancel, false, "allowlist bypasses direct ThreatMetrix host");
+        assertEqual(result.reason, "allowlisted", "allowlisted before host match");
     }
 }
