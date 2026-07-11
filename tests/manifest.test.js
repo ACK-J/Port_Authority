@@ -46,7 +46,10 @@ export async function run() {
     assert(background.includes("dnsCache"), "passes dnsCache to evaluateRequest");
     assert(background.includes("toggleEnabled"), "handles toggle messages");
     assert(background.includes("onBeforeRequest"), "registers webRequest listener");
-    assert(background.includes("allowed_domain_list"), "reads allowlist from storage");
+    assert(background.includes("allowed_domain_list") || background.includes("getAllowedDomainListCached"), "reads allowlist from storage/cache");
+    assert(background.includes("onRemoved"), "cleans up tab activity on tab close");
+    assert(background.includes("resetSessionTabActivity"), "resets stale session activity on startup");
+    assert(background.includes("getAllowedDomainListCached"), "uses cached allowlist on hot path");
 
     suite("requestFilter.js ThreatMetrix remediation surface");
     const requestFilter = readText("global/requestFilter.js");
@@ -69,6 +72,7 @@ export async function run() {
         "global/requestFilter.js",
         "global/allowlist.js",
         "global/BrowserStorageManager.js",
+        "global/tabActivity.js",
         "global/browserActions.js",
         "global/constants.js",
         "global/domUtils.js",
