@@ -46,11 +46,8 @@ let remove_buttons_event_controller;
 const allowlist_wrapper = document.getElementById("allowlist_section");
 const allowlist_contents = document.getElementById("allowlist_contents");
 async function load_allowlist(allowed_domain_list) {
-    // Remove all of the stale listeners
-    // TODO figure out if this is needed, unsure since calling `replaceChildren` could do listener cleanup on the deleted children
+    // Drop prior remove-button listeners before rebuilding the list.
     if (remove_buttons_event_controller) remove_buttons_event_controller.abort();
-
-    // Make a new AbortController for all of the fresh buttons
     remove_buttons_event_controller = new AbortController();
 
     // If not provided, fetch the allowed domain list from storage

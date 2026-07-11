@@ -104,6 +104,28 @@ function ipv4FromHextets(hi, lo) {
     ].join(".");
 }
 
+function isIpv4MappedHextets(hextets) {
+    return (
+        hextets[0] === 0 &&
+        hextets[1] === 0 &&
+        hextets[2] === 0 &&
+        hextets[3] === 0 &&
+        hextets[4] === 0 &&
+        hextets[5] === 0xffff
+    );
+}
+
+function isIpv4CompatibleHextets(hextets) {
+    return (
+        hextets[0] === 0 &&
+        hextets[1] === 0 &&
+        hextets[2] === 0 &&
+        hextets[3] === 0 &&
+        hextets[4] === 0 &&
+        hextets[5] === 0
+    );
+}
+
 function isPrivateIPv6(ip) {
     const hextets = expandIPv6(ip);
     if (!hextets) return false;
@@ -114,25 +136,8 @@ function isPrivateIPv6(ip) {
     // ::1 loopback
     if (hextets.every((h, i) => (i === 7 ? h === 1 : h === 0))) return true;
 
-    // IPv4-mapped ::ffff:0:0/96 (covers both ::ffff:127.0.0.1 and ::ffff:7f00:1)
-    const isV4Mapped =
-        hextets[0] === 0 &&
-        hextets[1] === 0 &&
-        hextets[2] === 0 &&
-        hextets[3] === 0 &&
-        hextets[4] === 0 &&
-        hextets[5] === 0xffff;
-
-    // Deprecated IPv4-compatible ::/96 (browsers still accept ::127.0.0.1 / ::7f00:1)
-    const isV4Compatible =
-        hextets[0] === 0 &&
-        hextets[1] === 0 &&
-        hextets[2] === 0 &&
-        hextets[3] === 0 &&
-        hextets[4] === 0 &&
-        hextets[5] === 0;
-
-    if (isV4Mapped || isV4Compatible) {
+    // IPv4-mapped ::ffff:0:0/96 and deprecated IPv4-compatible ::/96
+    if (isIpv4MappedHextets(hextets) || isIpv4CompatibleHextets(hextets)) {
         return isPrivateIPv4(ipv4FromHextets(hextets[6], hextets[7]));
     }
 
@@ -152,15 +157,18 @@ export function isPrivateAddress(ip) {
     return false;
 }
 
-function normalizeHostname(hostname) {
-    let host = hostname;
+/**
+ * Normalize a hostname or IP literal for stable compares.
+ * Strips IPv6 brackets, trailing FQDN dots, and lowercases.
+ * @param {string} hostname
+ * @returns {string}
+ */
+export function normalizeHostname(hostname) {
+    let host = String(hostname ?? "");
     if (host.startsWith("[") && host.endsWith("]")) {
         host = host.slice(1, -1);
     }
-    if (host.endsWith(".")) {
-        host = host.slice(0, -1);
-    }
-    return host.toLowerCase();
+    return host.replace(/\.+$/u, "").toLowerCase();
 }
 
 /** True when `hostname` is an IPv4/IPv6 literal (not a domain name). */
@@ -192,14 +200,7 @@ export function isUnspecifiedAddress(ip) {
 
     const mapped = normalized.includes(":") ? expandIPv6(normalized) : null;
     if (mapped) {
-        const isV4Mapped =
-            mapped[0] === 0 &&
-            mapped[1] === 0 &&
-            mapped[2] === 0 &&
-            mapped[3] === 0 &&
-            mapped[4] === 0 &&
-            mapped[5] === 0xffff;
-        if (isV4Mapped) {
+        if (isIpv4MappedHextets(mapped)) {
             return mapped[6] === 0 && mapped[7] === 0;
         }
         return mapped.every((h) => h === 0);

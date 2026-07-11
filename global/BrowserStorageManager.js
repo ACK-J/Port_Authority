@@ -1,27 +1,20 @@
-// TODO remove these eventually, that they're needed is a sign of bad code encapsulation
 import { updateBadges, notifyThreatMetrix, notifyPortScanning } from "./browserActions.js";
 import { getPortForProtocol } from "./constants.js";
+import { normalizeHostname } from "./privateAddress.js";
 import {
     clearTabActivity,
-    getBadgeForTab,
     getTabActivitySnapshot,
     incrementBadgeCounter,
-    loadTabActivityMemory,
     recordBlockedPort,
     recordBlockedTrackingHost,
     resetTabActivityForNavigation,
     resetTabActivityMemory,
 } from "./tabActivity.js";
 
-// Key required to access the same lock that's used to control write access to localStorage
 const STORAGE_LOCK_KEY = "port_authority_storage_lock";
 
 /** Coalesce hot-path activity writes so blocked-request storms cannot queue lock work. */
 const TAB_ACTIVITY_PERSIST_MS = 75;
-
-/** Defensive caps so a pathological page cannot grow per-tab maps without bound. */
-const MAX_BLOCKED_HOSTS_PER_TAB = 200;
-const MAX_PORTS_PER_HOST = 100;
 
 /** @type {ReturnType<typeof setTimeout> | null} */
 let tabActivityPersistTimer = null;
@@ -36,196 +29,105 @@ let allowedDomainListCache;
 let notificationsAllowedCache;
 
 /**
- * @private
- * @param {string} key - Used to reference stored value from `browser.storage.local`
- * @param {any} [default_value] - Will be returned if there is no value in storage under `key`
- * @returns {Promise<any>} Type is probably the same as `default_value` due to convention yet isn't checked or guaranteed at all
- * 
- * @remarks
- * Doesn't have any atomicity or transaction guarantees like the exported functions do.
- * Need to use a lock to prevent race conditions like:
- * 
- *      1. (trying to execute A++: read A=1 here)
- *      2. [A=5 written from other location]
- *      3. (write A++ based on old value, A=2, != 6 to reflect latest data) 
- * 
- * Also it's {@link https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage#:~:text=values%20stored%20can%20be%20any%20JSON%2Difiable%20value | likely} 
- * that `JSON.stringify` can be abandoned and was never needed in the first place, extension `storage` access supports types other than strings by default.
- * 
- * @see {@linkcode getItemFromLocal} For lock-safe storage reading version
- * @see {@linkcode modifyItemInLocal} If you need to change a value in addition to reading it (safely)
+ * Lock-free storage read. Callers must hold STORAGE_LOCK_KEY (shared or exclusive).
+ * Values are JSON-stringified for historical compatibility with existing installs.
  */
 async function UNLOCKED_getItemFromLocal(key, default_value) {
     let storage_value;
     try {
         storage_value = await browser.storage.local.get(key);
 
-        // Objects not in storage return an empty object and don't need to be parsed as JSON
-        if(Object.keys(storage_value).length === 0) {
-            console.warn("No value found for [" + key + "], using provided default: ", {
-                [key]: default_value
-            });
+        if (Object.keys(storage_value).length === 0) {
             return default_value;
         }
 
-        // Everything going to plan
         return JSON.parse(storage_value[key]);
     } catch (error) {
         console.error("Error getting storage value [" + key + "]: ", {
             error,
             default_value,
-            storage_value
+            storage_value,
         });
-
-        // Still degrading gracefully by returning the default value
         return default_value;
     }
 }
 
 /**
- * @param {string} key - Used to reference stored value from `browser.storage.local`
- * @param {any} [default_value] - Will be returned if there is no value in storage under `key`
- * @returns {Promise<any>} Type is probably the same as `default_value` due to convention yet isn't checked or guaranteed at all
- * 
- * @remarks
- * Don't need `exclusive` lock for reading, just writing and modifying.
- * *Do* still need `shared` lock to prevent reading in the middle of a modify action.
- * 
- * @see {@linkcode modifyItemInLocal} If you need to change a value in addition to reading it
- * @see {@linkcode UNLOCKED_getItemFromLocal} For the lock-free function this wraps
+ * Shared-lock read. Safe against mid-modify races.
  */
 export async function getItemFromLocal(key, default_value) {
-    return navigator.locks.request(STORAGE_LOCK_KEY,
-        { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
-        async (lock) => {
-            return UNLOCKED_getItemFromLocal(key, default_value);
-        }
+    return navigator.locks.request(
+        STORAGE_LOCK_KEY,
+        { mode: "shared" },
+        async () => UNLOCKED_getItemFromLocal(key, default_value)
     );
 }
 
 /**
+ * Exclusive-lock write of one key.
  * @template T
- * @param {string} key Used to reference stored value from `browser.storage.local`
- * @param {T} value Stored blindly, overwrites any previous value
- * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
- * 
- * @see {@linkcode modifyItemInLocal} If you need to read a value, mutate it, then save it (with transaction safety)
- * @see {@linkcode clearItemsInLocal} To clear and set all stored values at once
+ * @param {string} key
+ * @param {T} value
+ * @returns {Promise<T>}
  */
 export async function setItemInLocal(key, value) {
-    if (!value && value !== false) console.warn("Storing empty value to key [" + key + "]: " + value);
+    return setItemsInLocal({ [key]: value }).then(() => value);
+}
 
-    const stringifiedValue = JSON.stringify(value);
+/**
+ * Exclusive-lock write of multiple keys in one storage.set call.
+ * Prefer this over sequential setItemInLocal when updating related keys.
+ * @param {{ [key: string]: any }} entries
+ * @returns {Promise<{ [key: string]: any }>}
+ */
+export async function setItemsInLocal(entries) {
+    const stringified = Object.fromEntries(
+        Object.entries(entries).map(([key, value]) => [key, JSON.stringify(value)])
+    );
 
-    // Acquire lock for write access before updating
-    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
-        await browser.storage.local.set({ [key]: stringifiedValue });
-        return value;
+    return navigator.locks.request(STORAGE_LOCK_KEY, async () => {
+        await browser.storage.local.set(stringified);
+        return entries;
     });
 }
 
 /**
+ * Exclusive-lock read-modify-write.
  * @template T
- * @param {string} key Used to reference stored value from `browser.storage.local`
- * @param {T} default_value Will be passed as the original value to `mutate` if nothing is found in storage
- * @param {(original_value: T)=>(T | Promise<T>)} mutate Pass a function that takes the stored value and returns the new value to write. Function can be async.
- * @returns {Promise<T>} Resolves once operation is finished, returning the new stored value
- * 
- * @example
- * // Starting storage state: `{key_example: 1}`
- * modifyItemInLocal("key_example", 0, (v)=>v++) 
- * // Result storage state:  `{key_example: 2}`
- * 
- * @example
- * modifyItemInLocal("key", [],
- *     async (storageValue) => {   // storageValue: string[]
- *         // Storage access is locked until the function returns
- *         // no reads or writes can interrupt it
- * 
- *         storageValue.push("new item");
- *         storageValue.sort();
- * 
- *         return storageValue;    // returned value will be written to storage
- * });
- * 
- * @remarks
- * Need to use a lock to allow atomic and reliable modification of stored values.
- * Without locking, race conditions can occur.
- *
- *      1. (trying to execute A++: read A=1 here)
- *      2. [A=5 written from other location]
- *      3. (write A++ based on old value, A=2, != 6 to reflect latest data) 
+ * @param {string} key
+ * @param {T} default_value
+ * @param {(original_value: T) => (T | Promise<T>)} mutate
+ * @returns {Promise<T>}
  */
 export async function modifyItemInLocal(key, default_value, mutate) {
-    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
-        // Fetch the value to be modified, storing it in `initial_value`
+    return navigator.locks.request(STORAGE_LOCK_KEY, async () => {
         const initial_value = await UNLOCKED_getItemFromLocal(key, default_value);
-
-        // Apply the mutation function (adding a list item, removing an element based on a filter, etc)
         const new_value = await mutate(initial_value);
-
-        // Re-stringify and save the changed value
-        await browser.storage.local.set({
-            [key]: JSON.stringify(new_value)
-        });
-
-        // Return result of modification so can use later
+        await browser.storage.local.set({ [key]: JSON.stringify(new_value) });
         return new_value;
     });
 }
 
 /**
- * @param {{[key: string]: any}} [default_structure] Specify initial storage values to be written after clearing.
- * The object will be `JSON.stringify`'d transparently, so complex objects can be used.
- * @returns {Promise<{[key: string]: any}>} Resolves once operation is finished, returning the new stored values
- * 
- * @example
- * clearItemsInLocal({
- *     "allowed_domain_list": [],
- *     "blocking_enabled": true,
- *     "notifications_enabled": true
- * });
- * 
- * @remarks
- * Need to obtain the lock to guarantee a clean slate, otherwise
- * could be called in the middle of `modifyItemInLocal` running, clear the store,
- * then the interrupted `modifyItemInLocal` saves its work and overwrites the cleared values.
+ * Clear storage and optionally seed defaults.
+ * @param {{ [key: string]: any }} [default_structure]
  */
 export async function clearItemsInLocal(default_structure = {}) {
-    // Stringify each the value for each key instead of passing directly
-    // https://stackoverflow.com/a/14810722/3196151
-    // This might not be necessary, matching prior practices for now though
-    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage#:~:text=values%20stored%20can%20be%20any%20JSON%2Difiable%20value
-    const default_structure_stringified =
-        Object.fromEntries(Object.entries(default_structure).map(
-            ([key, value]) =>
-                [key, JSON.stringify(value)]
-        ));
+    const stringified = Object.fromEntries(
+        Object.entries(default_structure).map(([key, value]) => [key, JSON.stringify(value)])
+    );
 
-    console.debug("Clearing local storage with default values:", {
-        passed: default_structure,
-        parsed: default_structure_stringified
-    })
-
-    // Acquire lock for write access before clearing
-    return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
+    return navigator.locks.request(STORAGE_LOCK_KEY, async () => {
         await browser.storage.local.clear();
-        await browser.storage.local.set(
-            default_structure_stringified
-        );
-
-        // Return the values set
+        if (Object.keys(stringified).length > 0) {
+            await browser.storage.local.set(stringified);
+        }
         return default_structure;
     });
 }
 
-
-
-
-
 /**
- * In-memory allowlist used by the blocking hot path.
- * Avoids a shared storage lock + JSON.parse on every webRequest (issue #52).
+ * In-memory allowlist for the blocking hot path (avoids lock + JSON.parse per request).
  * @returns {Promise<string[]>}
  */
 export async function getAllowedDomainListCached() {
@@ -240,20 +142,14 @@ export async function getAllowedDomainListCached() {
 }
 
 /**
- * Keep the allowlist cache coherent with settings / storage writes.
- * @param {string[] | undefined} [nextValue] Parsed list, or omit to force reload on next read
+ * @param {string[] | undefined} [nextValue]
  */
 export function syncAllowedDomainListCache(nextValue) {
-    if (nextValue === undefined) {
-        allowedDomainListCache = undefined;
-        return;
-    }
-    allowedDomainListCache = Array.isArray(nextValue) ? nextValue : [];
+    allowedDomainListCache = nextValue === undefined
+        ? undefined
+        : (Array.isArray(nextValue) ? nextValue : []);
 }
 
-/**
- * @returns {Promise<boolean>}
- */
 async function getNotificationsAllowedCached() {
     if (notificationsAllowedCache !== undefined) {
         return notificationsAllowedCache;
@@ -266,11 +162,23 @@ async function getNotificationsAllowedCached() {
  * @param {boolean | undefined} [nextValue]
  */
 export function syncNotificationsAllowedCache(nextValue) {
-    if (nextValue === undefined) {
-        notificationsAllowedCache = undefined;
-        return;
+    notificationsAllowedCache = nextValue === undefined
+        ? undefined
+        : Boolean(nextValue);
+}
+
+/**
+ * Parse a JSON-stringified storage.onChanged newValue, or undefined to invalidate.
+ * @param {string | undefined} raw
+ * @returns {any | undefined}
+ */
+function parseChangedValue(raw) {
+    if (raw === undefined) return undefined;
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return undefined;
     }
-    notificationsAllowedCache = Boolean(nextValue);
 }
 
 /**
@@ -279,28 +187,11 @@ export function syncNotificationsAllowedCache(nextValue) {
  */
 export function applyStorageChangesToCaches(changes) {
     if (Object.prototype.hasOwnProperty.call(changes, "allowed_domain_list")) {
-        const raw = changes.allowed_domain_list?.newValue;
-        if (raw === undefined) {
-            syncAllowedDomainListCache(undefined);
-        } else {
-            try {
-                syncAllowedDomainListCache(JSON.parse(raw));
-            } catch {
-                syncAllowedDomainListCache(undefined);
-            }
-        }
+        syncAllowedDomainListCache(parseChangedValue(changes.allowed_domain_list?.newValue));
     }
     if (Object.prototype.hasOwnProperty.call(changes, "notificationsAllowed")) {
-        const raw = changes.notificationsAllowed?.newValue;
-        if (raw === undefined) {
-            syncNotificationsAllowedCache(undefined);
-        } else {
-            try {
-                syncNotificationsAllowedCache(JSON.parse(raw));
-            } catch {
-                syncNotificationsAllowedCache(undefined);
-            }
-        }
+        const parsed = parseChangedValue(changes.notificationsAllowed?.newValue);
+        syncNotificationsAllowedCache(parsed === undefined ? undefined : Boolean(parsed));
     }
 }
 
@@ -338,17 +229,16 @@ export async function flushTabActivity() {
 }
 
 async function persistTabActivityNow(epoch = tabActivityPersistEpoch) {
-    // Skip stale writers that began before a session reset.
     if (epoch !== tabActivityPersistEpoch) return;
 
     const snapshot = getTabActivitySnapshot();
     if (epoch !== tabActivityPersistEpoch) return;
 
-    // One exclusive lock section would be nicer, but existing helpers already
-    // serialize via STORAGE_LOCK_KEY — three quick writes beat N per-request writes.
-    await setItemInLocal("badges", snapshot.badges);
-    await setItemInLocal("blocked_ports", snapshot.blocked_ports);
-    await setItemInLocal("blocked_hosts", snapshot.blocked_hosts);
+    await setItemsInLocal({
+        badges: snapshot.badges,
+        blocked_ports: snapshot.blocked_ports,
+        blocked_hosts: snapshot.blocked_hosts,
+    });
 }
 
 /**
@@ -366,7 +256,6 @@ export function clearTabActivityData(tabId) {
  */
 export async function resetSessionTabActivity() {
     clearTabActivityPersistTimer();
-    // Invalidate any in-flight writer so it cannot resurrect stale maps after clear.
     tabActivityPersistEpoch += 1;
     const epoch = tabActivityPersistEpoch;
 
@@ -378,76 +267,77 @@ export async function resetSessionTabActivity() {
         }
     }
 
-    // Drop timers armed by mutations while we awaited the prior persist.
     clearTabActivityPersistTimer();
     resetTabActivityMemory();
 
     if (epoch !== tabActivityPersistEpoch) return;
 
-    await setItemInLocal("badges", {});
-    await setItemInLocal("blocked_ports", {});
-    await setItemInLocal("blocked_hosts", {});
+    await setItemsInLocal({
+        badges: {},
+        blocked_ports: {},
+        blocked_hosts: {},
+    });
 }
 
 /**
- * Test helper: load storage values into the in-memory activity maps.
+ * Flush activity and return the blocked ports/hosts for one tab (popup path).
+ * @param {number|string} tabId
+ * @returns {Promise<{ blocked_ports: object, blocked_hosts: string[] }>}
  */
-export async function hydrateTabActivityFromStorage() {
-    const [badges, blocked_ports, blocked_hosts] = await Promise.all([
-        getItemFromLocal("badges", {}),
-        getItemFromLocal("blocked_ports", {}),
-        getItemFromLocal("blocked_hosts", {}),
-    ]);
-    loadTabActivityMemory({ badges, blocked_ports, blocked_hosts });
+export async function getTabActivityForTab(tabId) {
+    await flushTabActivity();
+    const snapshot = getTabActivitySnapshot();
+    return {
+        blocked_ports: snapshot.blocked_ports[tabId] ?? {},
+        blocked_hosts: snapshot.blocked_hosts[tabId] ?? [],
+    };
 }
 
 /**
- * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
- *
- * @param {URL} url URL object built from the url of the tab associated with the tabID
- * @param {string|number} tabIdString Id the of the browser tab the port check was executed in
+ * Record a blocked port-scan target for a tab.
+ * @param {URL} url
+ * @param {string|number} tabIdString
  */
 export function addBlockedPortToHost(url, tabIdString) {
     const tabId = parseInt(tabIdString, 10);
     if (Number.isNaN(tabId) || tabId < 0) return false;
 
-    const host = url.host.split(":")[0]; // TODO replace with more robust method to get host, this might act funky around IPv6 addresses
-    const port = "" + (url.port || getPortForProtocol(url.protocol));
+    // Prefer hostname over host so ports are not mangled; normalize strips IPv6 brackets
+    // (Node's URL keeps them; Firefox does not).
+    const host = normalizeHostname(url.hostname);
+    const mappedPort = getPortForProtocol(url.protocol);
+    const port = url.port || (mappedPort != null ? String(mappedPort) : "");
+    if (!port) return false;
 
-    const changed = recordBlockedPort(tabId, host, port, MAX_PORTS_PER_HOST);
+    const changed = recordBlockedPort(tabId, host, port);
     if (changed) scheduleTabActivityPersist();
     return changed;
 }
 
 /**
- * Adds the host of the provided url to the list of blocked tracking hosts for the tab.
- *
- * @param {URL} url URL object built from the url of the tab associated with the tabID
- * @param {string|number} tabIdString Id the of the browser tab the port check was executed in
+ * Record a blocked tracking host for a tab.
+ * @param {URL} url
+ * @param {string|number} tabIdString
  */
 export function addBlockedTrackingHost(url, tabIdString) {
     const tabId = parseInt(tabIdString, 10);
     if (Number.isNaN(tabId) || tabId < 0) return false;
 
-    const host = url.host;
-    const changed = recordBlockedTrackingHost(tabId, host, MAX_BLOCKED_HOSTS_PER_TAB);
+    const changed = recordBlockedTrackingHost(tabId, normalizeHostname(url.hostname));
     if (changed) scheduleTabActivityPersist();
     return changed;
 }
 
 /**
- * Increases the badge by one and optionally fires a one-shot notification.
+ * Increase the badge and optionally fire a one-shot notification.
  * Memory update is synchronous; disk persistence is coalesced (issue #52).
- *
  * @param {{ tabId?: number, url?: string, originUrl?: string } | null} request
  * @param {boolean} isThreatMetrix
- * @returns {Promise<void>}
  */
 export async function increaseBadge(request, isThreatMetrix) {
     const tabId = request?.tabId;
     const url = request?.url;
 
-    // Error checking for invalid request
     if (!request || tabId === -1 || tabId === undefined || tabId === null) {
         console.error("Invalid `request` passed to increaseBadge:", { request, isThreatMetrix });
         return;
@@ -455,7 +345,6 @@ export async function increaseBadge(request, isThreatMetrix) {
 
     const { counter, shouldNotify } = incrementBadgeCounter(
         tabId,
-        // Prefer the page URL so navigation cleanup compares against tab URLs.
         request.originUrl || url
     );
     updateBadges(counter, tabId);
@@ -486,12 +375,4 @@ export async function increaseBadge(request, isThreatMetrix) {
 export function resetTabDataForNavigation(tabId, lastURL) {
     resetTabActivityForNavigation(tabId, lastURL);
     scheduleTabActivityPersist();
-}
-
-/**
- * @param {number|string} tabId
- * @returns {import("./tabActivity.js").BadgeInfo | undefined}
- */
-export function peekBadgeForTab(tabId) {
-    return getBadgeForTab(tabId);
 }

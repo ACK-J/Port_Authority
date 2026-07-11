@@ -3,12 +3,11 @@
  */
 import {
     evaluateRequest,
-    THREATMETRIX_CNAME,
     THREATMETRIX_SUFFIXES,
     matchesThreatMetrixHost,
-    normalizeHostname,
     createDnsResultCache,
 } from "../global/requestFilter.js";
+import { normalizeHostname } from "../global/privateAddress.js";
 import { suite, assert, assertEqual } from "./harness.js";
 
 function req(overrides = {}) {
@@ -280,7 +279,6 @@ export async function run() {
     ];
     for (const host of positiveHosts) {
         assert(matchesThreatMetrixHost(host) === true, `match ThreatMetrix host ${host}`);
-        assert(THREATMETRIX_CNAME.test(host) === true, `compat wrapper matches ${host}`);
     }
 
     const negativeHosts = [

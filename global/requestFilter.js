@@ -2,12 +2,14 @@
  * Decision logic for whether a request should be blocked.
  * Kept free of badge/notification/storage side effects so it can be unit tested.
  */
+import { isHostAllowlisted } from "./allowlist.js";
 import {
     isLocalRequestUrl,
     isLiteralIpHostname,
     isPrivateAddress,
     hostnameSuggestsIpRebinding,
     isUnspecifiedAddress,
+    normalizeHostname,
 } from "./privateAddress.js";
 
 /**
@@ -21,16 +23,6 @@ export const THREATMETRIX_SUFFIXES = Object.freeze([
     "lexisnexisrisk.com",
     "lnrsoftware.com",
 ]);
-
-/**
- * Strip trailing dots (FQDN form) and lowercase for stable suffix compares.
- * browser.dns.resolve may or may not normalize trailing dots; do not rely on it.
- * @param {string} hostname
- * @returns {string}
- */
-export function normalizeHostname(hostname) {
-    return String(hostname ?? "").replace(/\.+$/u, "").toLowerCase();
-}
 
 /**
  * True when hostname is one of {@link THREATMETRIX_SUFFIXES} or a subdomain thereof.
@@ -48,16 +40,6 @@ export function matchesThreatMetrixHost(hostname) {
     }
     return false;
 }
-
-/**
- * @deprecated Prefer {@link matchesThreatMetrixHost} / {@link THREATMETRIX_SUFFIXES}.
- * Kept as a thin wrapper for any external callers of the old regex export.
- */
-export const THREATMETRIX_CNAME = {
-    test(value) {
-        return matchesThreatMetrixHost(value);
-    },
-};
 
 /**
  * Session-scoped LRU map of hostname → DNS resolve result.
@@ -164,6 +146,25 @@ export function createDnsResultCache(maxSize = 256) {
  * @param {boolean} skipCache
  * @returns {Promise<{ ok: true, resolving: DnsResolveResult } | { ok: false }>}
  */
+const DNS_TIMEOUT_MS = 8000;
+
+/** Reject if `promise` does not settle within `ms`. */
+function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("dns-timeout")), ms);
+        Promise.resolve(promise).then(
+            (value) => {
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timer);
+                reject(error);
+            }
+        );
+    });
+}
+
 async function resolveWithOptionalCache(hostname, deps, skipCache) {
     const { resolveDns, dnsCache } = deps;
     const useCache = Boolean(dnsCache) && !skipCache;
@@ -184,32 +185,7 @@ async function resolveWithOptionalCache(hostname, deps, skipCache) {
 
     // Bound hung resolver waits so cancel()/inflight maps cannot pin request
     // details indefinitely if dns.resolve never settles.
-    const DNS_TIMEOUT_MS = 8000;
-    const resolvePromise = new Promise((resolve, reject) => {
-        let settled = false;
-        const timer = setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            reject(new Error("dns-timeout"));
-        }, DNS_TIMEOUT_MS);
-
-        Promise.resolve()
-            .then(() => resolveDns(hostname))
-            .then(
-                (value) => {
-                    if (settled) return;
-                    settled = true;
-                    clearTimeout(timer);
-                    resolve(value);
-                },
-                (error) => {
-                    if (settled) return;
-                    settled = true;
-                    clearTimeout(timer);
-                    reject(error);
-                }
-            );
-    });
+    const resolvePromise = withTimeout(resolveDns(hostname), DNS_TIMEOUT_MS);
 
     if (useCache) {
         dnsCache.setInflight?.(hostname, resolvePromise);
@@ -258,7 +234,7 @@ export async function evaluateRequest(requestDetails, deps) {
     }
 
     const allowedDomains = await getAllowedDomains();
-    if (allowedDomains.some((domain) => originUrl.host === domain)) {
+    if (isHostAllowlisted(originUrl.host, allowedDomains)) {
         return { cancel: false, reason: "allowlisted" };
     }
 
