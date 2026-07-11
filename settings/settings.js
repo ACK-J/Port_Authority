@@ -89,7 +89,18 @@ function extractURLHost(url) {
     // We don't actually care about the protocol as we only compare url.host
     // But the URL object will fail to create if no protocol is provided
     if (!url.match(/^\w*:\/\//)) {
-        url = "http://" + url;
+        const pathStart = url.indexOf("/");
+        const hostPort = pathStart === -1 ? url : url.slice(0, pathStart);
+        const path = pathStart === -1 ? "" : url.slice(pathStart);
+
+        if (hostPort.includes(":") && !hostPort.startsWith("[")) {
+            const isIPv4WithOptionalPort = /^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$/.test(hostPort);
+            url = isIPv4WithOptionalPort ?
+                `http://${hostPort}${path}` :
+                `http://[${hostPort}]${path}`;
+        } else {
+            url = `http://${url}`;
+        }
     }
     const newUrl = new URL(url);
     return newUrl.host;
@@ -107,7 +118,7 @@ function allowlist_add_listener(event) {
         url = extractURLHost(url);
     } catch(error) {
         console.warn("Error parsing a domain to add to the allowlist:", {url, error});
-        alert("Please enter a valid domain.");
+        alert("Please enter a valid domain or IP address.");
         return;
     }
     

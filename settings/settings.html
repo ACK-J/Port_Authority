@@ -13,14 +13,14 @@
 
 <body class="flex-column">
     <form id="allowlist_add_form">
-        <p><strong class="warning-text">Make sure you enter a proper domain name (discord.com)</strong></p>
-        <label>Allow new domain:
-            <input type="text" name="add_domain" required placeholder="discord.com (example)">
+        <p><strong class="warning-text">Enter a domain (discord.com) or IP address (127.0.0.1)</strong></p>
+        <label>Allow new domain or IP address:
+            <input type="text" name="add_domain" required placeholder="discord.com or 127.0.0.1">
         </label>
         <button type="submit">Add</button>
     </form>
     <section id="allowlist_section" hidden>
-        <strong>Domains Allowed to Bypass PortAuthority Blocking:</strong>
+        <strong>Domains and IP Addresses Allowed to Bypass PortAuthority Blocking:</strong>
         <ul id="allowlist_contents" class="selectable">
             <!-- Dynamically Populated -->
         </ul>
