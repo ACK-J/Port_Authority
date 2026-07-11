@@ -138,11 +138,7 @@ function handleRemoved(tabId) {
 
 const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
 async function onMessage(message, sender) {
-    // Add origin check for security (preemptively accepting messages from any extension page/script in advance of potential `settings.js` rewrite)
-    /* TODO Potentially remove, pretty sure this isn't needed:
-       https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/onMessage#:~:text=from%20another%20part%20of%20your%20extension
-       https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/onMessageExternal
-    */
+    // Defense in depth: runtime.onMessage is extension-internal, but reject unexpected origins.
     if (sender.origin !== extensionOrigin) {
         console.warn("Message from unexpected origin:", sender.url);
         return;

@@ -1,57 +1,51 @@
+async function notify(id, title, message) {
+    return browser.notifications.create(id, {
+        type: "basic",
+        iconUrl: browser.runtime.getURL("icons/logo-96.png"),
+        title,
+        message,
+    });
+}
 
 export async function notifyPortScanning(domain_name) {
-    const message = (domain_name) ?
-        "Port Authority blocked " + domain_name + " from port scanning your private network."
+    const message = domain_name
+        ? `Port Authority blocked ${domain_name} from port scanning your private network.`
         : "Port Authority blocked this site from port scanning your private network.";
 
-    return browser.notifications.create("port-scanning-notification", {
-        "type": "basic",
-        "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-        "title": "Port Scan Blocked",
-        "message": message
-    });
+    return notify("port-scanning-notification", "Port Scan Blocked", message);
 }
 
 export async function notifyThreatMetrix(domain_name) {
-    const message = (domain_name) ?
-        "Port Authority blocked a hidden LexisNexis endpoint on " + domain_name + " from running an invasive data collection script."
+    const message = domain_name
+        ? `Port Authority blocked a hidden LexisNexis endpoint on ${domain_name} from running an invasive data collection script.`
         : "Port Authority blocked a hidden LexisNexis endpoint from running an invasive data collection script.";
 
-    return browser.notifications.create("threatmetrix-notification", {
-        "type": "basic",
-        "iconUrl": browser.runtime.getURL("icons/logo-96.png"),
-        "title": "Tracking Script Blocked",
-        "message": message
-    });
+    return notify("threatmetrix-notification", "Tracking Script Blocked", message);
 }
 
-
 /**
- * Updates the extension button's little badge text, only on the tab where it's relevant
- * @param {string} text The new badge text to display
- * @param {number} tabId The id of the tab to show the new badge on
+ * Updates the extension button's badge text on the relevant tab.
+ * @param {string|number} text
+ * @param {number|string} tabId
  */
 export function updateBadges(text, tabId) {
     try {
         browser.browserAction.setBadgeText({
             text: text.toString(),
-            tabId: parseInt(tabId)
+            tabId: parseInt(tabId, 10),
         });
     } catch (error) {
         console.error("Couldn't update badge:", { tabId, text, error });
     }
 }
 
-
 /**
- * Call from a scope which has access to `browser.tabs`
- * @returns {Promise<number>} The id number of the focused tab
-*/
+ * @returns {Promise<number>} Focused tab id
+ */
 export async function getActiveTabId() {
-    const querying = await browser.tabs.query({
+    const tabs = await browser.tabs.query({
         currentWindow: true,
         active: true,
     });
-    const tab = querying[0];
-    return tab.id;
+    return tabs[0].id;
 }

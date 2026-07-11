@@ -10,8 +10,9 @@ import {
     isPrivateAddress,
     hostnameSuggestsIpRebinding,
     isUnspecifiedAddress,
+    normalizeHostname,
 } from "../global/privateAddress.js";
-import { suite, assert } from "./harness.js";
+import { suite, assert, assertEqual } from "./harness.js";
 
 function assertBlock(urlString, reason) {
     const url = new URL(urlString);
@@ -186,4 +187,9 @@ export async function run() {
     assert(isUnspecifiedAddress("127.0.0.1") === false, "loopback is not unspecified");
     assert(isUnspecifiedAddress("8.8.8.8") === false, "public is not unspecified");
     assert(isUnspecifiedAddress("::1") === false, "loopback v6 is not unspecified");
+
+    suite("normalizeHostname");
+    assertEqual(normalizeHostname("Example.COM."), "example.com", "strips trailing dots + lowercases");
+    assertEqual(normalizeHostname("[::1]"), "::1", "strips IPv6 brackets");
+    assertEqual(normalizeHostname("host.example..."), "host.example", "strips multiple trailing dots");
 }

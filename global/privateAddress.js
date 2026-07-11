@@ -152,15 +152,18 @@ export function isPrivateAddress(ip) {
     return false;
 }
 
-function normalizeHostname(hostname) {
-    let host = hostname;
+/**
+ * Normalize a hostname or IP literal for stable compares.
+ * Strips IPv6 brackets, trailing FQDN dots, and lowercases.
+ * @param {string} hostname
+ * @returns {string}
+ */
+export function normalizeHostname(hostname) {
+    let host = String(hostname ?? "");
     if (host.startsWith("[") && host.endsWith("]")) {
         host = host.slice(1, -1);
     }
-    if (host.endsWith(".")) {
-        host = host.slice(0, -1);
-    }
-    return host.toLowerCase();
+    return host.replace(/\.+$/u, "").toLowerCase();
 }
 
 /** True when `hostname` is an IPv4/IPv6 literal (not a domain name). */

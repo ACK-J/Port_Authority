@@ -60,6 +60,8 @@ export async function run() {
     assert(requestFilter.includes("threatmetrix.com"), "lists threatmetrix.com");
     assert(requestFilter.includes("lexisnexisrisk.com"), "lists lexisnexisrisk.com");
     assert(requestFilter.includes("lnrsoftware.com"), "lists lnrsoftware.com");
+    assert(requestFilter.includes('from "./allowlist.js"'), "uses shared allowlist helper");
+    assert(requestFilter.includes("isHostAllowlisted"), "delegates allowlist checks");
     assert(requestFilter.includes("normalizeHostname"), "normalizes trailing-dot hostnames");
 
     suite("settings.js uses shared allowlist helper");

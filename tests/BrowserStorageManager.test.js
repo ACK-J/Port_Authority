@@ -154,6 +154,15 @@ async function runQuiet() {
         const ports = await storageApi.getItemFromLocal("blocked_ports", {});
         assertEqual(ports[9]["172.16.0.1"], ["80"], "default http port");
     }
+    {
+        await storageApi.resetSessionTabActivity();
+        storageApi.addBlockedPortToHost(new URL("http://[::1]:6463/"), "10");
+        storageApi.addBlockedPortToHost(new URL("http://[fd12:3456:789a:1::1]:22/"), "10");
+        await storageApi.flushTabActivity();
+        const ports = await storageApi.getItemFromLocal("blocked_ports", {});
+        assertEqual(ports[10]["::1"], ["6463"], "IPv6 loopback hostname preserved");
+        assertEqual(ports[10]["fd12:3456:789a:1::1"], ["22"], "IPv6 ULA hostname preserved");
+    }
 
     suite("addBlockedTrackingHost");
     {

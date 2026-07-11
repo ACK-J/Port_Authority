@@ -3,7 +3,6 @@
  */
 import {
     evaluateRequest,
-    THREATMETRIX_CNAME,
     THREATMETRIX_SUFFIXES,
     matchesThreatMetrixHost,
     normalizeHostname,
@@ -280,7 +279,6 @@ export async function run() {
     ];
     for (const host of positiveHosts) {
         assert(matchesThreatMetrixHost(host) === true, `match ThreatMetrix host ${host}`);
-        assert(THREATMETRIX_CNAME.test(host) === true, `compat wrapper matches ${host}`);
     }
 
     const negativeHosts = [
