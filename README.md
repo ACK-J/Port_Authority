@@ -23,9 +23,9 @@ This addon blocks websites from using javascript to port scan your computer/inte
 ## Donations
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
 
-## Regex Explanation
-- Explanation of the regex used to determine local addresses: https://regex101.com/r/LSL180/1
-- Explanation of the regex which is used to match the protocol: https://regex101.com/r/f8LSTx/2
+## Implementation Notes
+- Local address detection uses the URL API and `global/privateAddress.js` (RFC 1918, loopback, link-local, IPv6 ULA, and exact `localhost` hostname matching)
+- Explanation of the regex used to match ThreatMetrix CNAMEs: https://regex101.com/r/f8LSTx/2
 
 ## Test All Forms of Port Scanning 
 - A webpage I made to test all forms of scanning in one location using the [./TestPortScans.html](https://github.com/ACK-J/Port_Authority/blob/main/TestPortScans.html) file

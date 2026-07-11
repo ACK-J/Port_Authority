@@ -1,7 +1,11 @@
 /**
- * Detects IP addresses in non-routable/private ranges that local_filter would
- * block when they appear literally in a request URL.
+ * Detects when a network request targets a non-routable/local address.
+ * Uses the URL API for parsing instead of regex on raw URL strings.
  */
+
+const LOCAL_REQUEST_PROTOCOLS = new Set([
+    "http:", "https:", "ws:", "wss:", "ftp:", "ftps:",
+]);
 
 function isPrivateIPv4(ip) {
     const parts = ip.split(".").map(Number);
@@ -54,4 +58,28 @@ export function isPrivateAddress(ip) {
     if (ip.includes(":")) return isPrivateIPv6(ip);
     if (ip.includes(".")) return isPrivateIPv4(ip);
     return false;
+}
+
+function normalizeHostname(hostname) {
+    let host = hostname;
+    if (host.startsWith("[") && host.endsWith("]")) {
+        host = host.slice(1, -1);
+    }
+    if (host.endsWith(".")) {
+        host = host.slice(0, -1);
+    }
+    return host.toLowerCase();
+}
+
+/**
+ * Returns true when `url` targets a local/private address over a supported protocol.
+ * @param {URL} url Parsed request URL
+ */
+export function isLocalRequestUrl(url) {
+    if (!LOCAL_REQUEST_PROTOCOLS.has(url.protocol)) return false;
+
+    const hostname = normalizeHostname(url.hostname);
+    if (hostname === "localhost") return true;
+
+    return isPrivateAddress(hostname);
 }
