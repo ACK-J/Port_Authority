@@ -32,9 +32,39 @@ function deps(overrides = {}) {
 export async function run() {
     suite("first-party and allowlist short circuits");
     {
-        const result = await evaluateRequest(req({ thirdParty: false }), deps());
-        assertEqual(result.cancel, false, "first-party not cancelled");
+        // Same host, same site — no DNS, no blocking
+        const result = await evaluateRequest(
+            req({
+                thirdParty: false,
+                originUrl: "https://www.example.com/page",
+                url: "https://www.example.com/app.js",
+            }),
+            deps({
+                resolveDns: async () => {
+                    throw new Error("DNS must not run for same-host first-party");
+                },
+            })
+        );
+        assertEqual(result.cancel, false, "same-host first-party not cancelled");
         assertEqual(result.reason, "first-party", "first-party reason");
+    }
+    {
+        // Cross-subdomain same-site without TMX CNAME — allowed after DNS
+        const result = await evaluateRequest(
+            req({
+                thirdParty: false,
+                originUrl: "https://www.example.com/",
+                url: "https://cdn.example.com/app.js",
+            }),
+            deps({
+                resolveDns: async () => ({
+                    addresses: ["93.184.216.34"],
+                    canonicalName: "cdn.example.com",
+                }),
+            })
+        );
+        assertEqual(result.cancel, false, "cross-subdomain non-TMX allowed");
+        assertEqual(result.reason, "first-party", "still first-party reason when clean");
     }
     {
         const result = await evaluateRequest(
@@ -375,6 +405,65 @@ export async function run() {
         );
         assertEqual(result.cancel, true, "public IP + TMX CNAME still blocked");
         assertEqual(result.reason, "threatmetrix", "TMX reason when public A");
+    }
+    {
+        // Same-site branded customer endpoint (Firefox thirdParty=false for
+        // www.bestbuy.com → tmx.bestbuy.com) must still be CNAME-blocked.
+        let dnsCalled = false;
+        const result = await evaluateRequest(
+            req({
+                thirdParty: false,
+                originUrl: "https://www.bestbuy.com/site/signin",
+                url: "https://tmx.bestbuy.com/fp/clear.png",
+            }),
+            deps({
+                resolveDns: async (hostname) => {
+                    dnsCalled = true;
+                    assertEqual(hostname, "tmx.bestbuy.com", "resolves branded host");
+                    return {
+                        addresses: ["192.225.157.145"],
+                        canonicalName: "h-bestbuy.online-metrix.net.",
+                    };
+                },
+            })
+        );
+        assertEqual(result.cancel, true, "tmx.bestbuy.com same-site CNAME blocked");
+        assertEqual(result.reason, "threatmetrix", "threatmetrix reason for bestbuy");
+        assert(dnsCalled === true, "CNAME lookup runs for cross-subdomain same-site");
+    }
+    {
+        // Other TestPortScans.html-style branded endpoints
+        const branded = [
+            {
+                origin: "https://www.chick-fil-a.com/",
+                url: "https://tmetrix.my.chick-fil-a.com/script.js",
+                cname: "h-cfa.online-metrix.net",
+            },
+            {
+                origin: "https://www.ebay.com/",
+                url: "https://src.ebay-us.com/fp",
+                cname: "h-ebay.online-metrix.net",
+            },
+        ];
+        for (const case_ of branded) {
+            const result = await evaluateRequest(
+                req({
+                    thirdParty: false,
+                    originUrl: case_.origin,
+                    url: case_.url,
+                }),
+                deps({
+                    resolveDns: async () => ({
+                        addresses: ["203.0.113.9"],
+                        canonicalName: case_.cname,
+                    }),
+                })
+            );
+            assert(
+                result.cancel === true && result.reason === "threatmetrix",
+                `same-site branded TMX blocked: ${case_.url}`
+            );
+        }
     }
 
     suite("DNS result LRU cache");

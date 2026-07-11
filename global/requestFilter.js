@@ -1,5 +1,5 @@
 /**
- * Decision logic for whether a third-party request should be blocked.
+ * Decision logic for whether a request should be blocked.
  * Kept free of badge/notification/storage side effects so it can be unit tested.
  */
 import {
@@ -129,10 +129,38 @@ export function createDnsResultCache(maxSize = 256) {
  */
 
 /**
+ * Resolve DNS with optional session cache. Rebinding-like names skip the cache.
+ * @param {string} hostname
+ * @param {RequestFilterDeps} deps
+ * @param {boolean} skipCache
+ * @returns {Promise<{ ok: true, resolving: DnsResolveResult } | { ok: false }>}
+ */
+async function resolveWithOptionalCache(hostname, deps, skipCache) {
+    const { resolveDns, dnsCache } = deps;
+    const useCache = Boolean(dnsCache) && !skipCache;
+    let resolving = useCache ? dnsCache.get(hostname) : undefined;
+
+    if (!resolving) {
+        try {
+            resolving = await resolveDns(hostname);
+        } catch {
+            return { ok: false };
+        }
+        if (useCache) {
+            dnsCache.set(hostname, resolving);
+        }
+    }
+
+    return { ok: true, resolving };
+}
+
+/**
  * Evaluate a webRequest-like detail object and decide whether to cancel it.
  *
- * Callers are responsible for first-party short-circuiting if desired; this
- * function still accepts `thirdParty` and allows first-party requests.
+ * Port-scan filtering applies to third-party requests only. ThreatMetrix
+ * matching also runs for same-site cross-subdomain requests — customer
+ * endpoints like `tmx.bestbuy.com` share the site's eTLD+1 so Firefox sets
+ * `thirdParty: false`, but they CNAME into LexisNexis infrastructure.
  *
  * @param {{
  *   thirdParty?: boolean,
@@ -143,11 +171,8 @@ export function createDnsResultCache(maxSize = 256) {
  * @returns {Promise<FilterAllow | FilterBlock>}
  */
 export async function evaluateRequest(requestDetails, deps) {
-    const { getAllowedDomains, resolveDns, dnsCache } = deps;
-
-    if (!requestDetails.thirdParty) {
-        return { cancel: false, reason: "first-party" };
-    }
+    const { getAllowedDomains } = deps;
+    const isThirdParty = Boolean(requestDetails.thirdParty);
 
     let originUrl;
     try {
@@ -168,43 +193,50 @@ export async function evaluateRequest(requestDetails, deps) {
         return { cancel: false, reason: "unparseable-url" };
     }
 
-    if (isLocalRequestUrl(url)) {
-        return { cancel: true, reason: "portscan", url };
+    const requestHost = normalizeHostname(url.hostname);
+    const originHost = normalizeHostname(originUrl.hostname);
+    const sameHost = requestHost === originHost;
+
+    // Same-host first-party resources (page's own assets): allow without DNS.
+    if (!isThirdParty && sameHost) {
+        return { cancel: false, reason: "first-party" };
     }
 
-    // Literal public (or already-classified) IPs: no DNS follow-up.
-    if (isLiteralIpHostname(url.hostname)) {
-        return { cancel: false, reason: "literal-ip" };
+    // Port-scan / private-address checks only for third-party requests.
+    if (isThirdParty) {
+        if (isLocalRequestUrl(url)) {
+            return { cancel: true, reason: "portscan", url };
+        }
+
+        // Literal public (or already-classified) IPs: no DNS follow-up.
+        if (isLiteralIpHostname(url.hostname)) {
+            return { cancel: false, reason: "literal-ip" };
+        }
+    } else if (isLiteralIpHostname(url.hostname)) {
+        // Same-site but literal IP host — not a TMX hostname path.
+        return { cancel: false, reason: "first-party" };
     }
 
     // Known LexisNexis / ThreatMetrix hosts: block without a DNS side-channel.
+    // Applies to first- and third-party (direct infrastructure hits).
     if (matchesThreatMetrixHost(url.hostname)) {
         return { cancel: true, reason: "threatmetrix", url };
     }
 
-    // DNS is still needed for (1) rebinding-like private A/AAAA answers and
-    // (2) customer-specific CNAMEs into ThreatMetrix infrastructure.
-    // Rebinding-like names skip the session cache so a later private answer
-    // is not masked by an earlier public one.
-    const useCache = Boolean(dnsCache) && !hostnameSuggestsIpRebinding(url.hostname);
-    let resolving = useCache ? dnsCache.get(url.hostname) : undefined;
-
-    if (!resolving) {
-        try {
-            resolving = await resolveDns(url.hostname);
-        } catch {
-            // Explicit fail-open: a resolver outage must not break browsing.
-            // Known ThreatMetrix suffixes are already handled without DNS above.
-            return { cancel: false, reason: "dns-failure" };
-        }
-        if (useCache) {
-            dnsCache.set(url.hostname, resolving);
-        }
+    // DNS is needed for:
+    //  (1) third-party rebinding-like private A/AAAA answers
+    //  (2) customer-specific CNAMEs into ThreatMetrix (including same-site
+    //      branded hosts such as tmx.bestbuy.com → h-bestbuy.online-metrix.net)
+    const needsRebindingCheck = isThirdParty && hostnameSuggestsIpRebinding(url.hostname);
+    const resolved = await resolveWithOptionalCache(url.hostname, deps, needsRebindingCheck);
+    if (!resolved.ok) {
+        // Explicit fail-open: a resolver outage must not break browsing.
+        // Known ThreatMetrix suffixes are already handled without DNS above.
+        return { cancel: false, reason: "dns-failure" };
     }
+    const { resolving } = resolved;
 
-    // Only treat private DNS answers as port scans for rebinding-like names.
-    // Content blockers sinkhole ordinary domains to 0.0.0.0 / 127.0.0.1.
-    if (hostnameSuggestsIpRebinding(url.hostname)) {
+    if (needsRebindingCheck) {
         for (const address of resolving.addresses ?? []) {
             if (isUnspecifiedAddress(address)) continue;
             if (isPrivateAddress(address)) {
@@ -217,5 +249,5 @@ export async function evaluateRequest(requestDetails, deps) {
         return { cancel: true, reason: "threatmetrix", url };
     }
 
-    return { cancel: false, reason: "clean" };
+    return { cancel: false, reason: isThirdParty ? "clean" : "first-party" };
 }

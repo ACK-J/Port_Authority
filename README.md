@@ -30,6 +30,7 @@ This addon blocks websites from using javascript to port scan your computer/inte
 - DNS private-IP blocking is limited to rebinding-like hostnames (embedded IPs, nip.io/sslip.io/etc.) so content-blocker sinkholes to `0.0.0.0`/`127.0.0.1` are not reported as port scans
 - ThreatMetrix blocking uses an explicit, auditable suffix list (`online-metrix.net`, `threatmetrix.com`, `lexisnexisrisk.com`, `lnrsoftware.com`) matched against both the request hostname and any DNS canonical name
 - Hostnames that already match that list are blocked without a DNS lookup
+- Same-site branded customer endpoints (e.g. `tmx.bestbuy.com` on `bestbuy.com`, where Firefox sets `thirdParty: false`) are still CNAME-checked when the request host differs from the page host
 - Other third-party hosts may still be CNAME-checked once per hostname per session via an in-memory LRU; rebinding-like names skip the cache so a later private answer is not masked
 - Hostname compares strip trailing dots so FQDN forms like `h.online-metrix.net.` still match
 - Transient DNS failures fail open (request allowed) after an explicit catch; known ThreatMetrix suffixes do not depend on DNS and are still blocked
