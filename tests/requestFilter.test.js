@@ -242,11 +242,11 @@ export async function run() {
         "CUSTOMER.online-metrix.net",
         "h-us.online-metrix.net.",
         "threatmetrix.com",
-        "api.threatmetrix.com",
+        "www.threatmetrix.com",
         "lexisnexisrisk.com",
-        "foo.lexisnexisrisk.com.",
+        "www.lexisnexisrisk.com.",
         "lnrsoftware.com",
-        "cdn.lnrsoftware.com",
+        "www.lnrsoftware.com",
     ];
     for (const host of positiveHosts) {
         assert(matchesThreatMetrixHost(host) === true, `match ThreatMetrix host ${host}`);
@@ -257,6 +257,7 @@ export async function run() {
         "evil-online-metrix.net",
         "online-metrix.net.evil.com",
         "notthreatmetrix.com",
+        "api.threatmetrix.com.evil.example",
         "example.com",
         "metrix.net",
         "",
@@ -266,14 +267,14 @@ export async function run() {
     }
 
     {
-        // Direct host match — no DNS
+        // Direct host match — no DNS (threatmetrix.com resolves; api. does not)
         let dnsCalled = false;
         const result = await evaluateRequest(
-            req({ url: "https://api.threatmetrix.com/" }),
+            req({ url: "https://threatmetrix.com/" }),
             deps({
                 resolveDns: async () => {
                     dnsCalled = true;
-                    return { addresses: ["203.0.113.1"], canonicalName: "api.threatmetrix.com" };
+                    return { addresses: ["203.0.113.1"], canonicalName: "threatmetrix.com" };
                 },
             })
         );
@@ -284,7 +285,7 @@ export async function run() {
     {
         let dnsCalled = false;
         const result = await evaluateRequest(
-            req({ url: "https://h-us.online-metrix.net/script.js" }),
+            req({ url: "https://h.online-metrix.net/script.js" }),
             deps({
                 resolveDns: async () => {
                     dnsCalled = true;
@@ -298,7 +299,7 @@ export async function run() {
     {
         let dnsCalled = false;
         const result = await evaluateRequest(
-            req({ url: "https://portal.lexisnexisrisk.com/" }),
+            req({ url: "https://www.lexisnexisrisk.com/" }),
             deps({
                 resolveDns: async () => {
                     dnsCalled = true;
@@ -479,7 +480,7 @@ export async function run() {
     {
         // Known suffix still blocked even if resolveDns would throw
         const result = await evaluateRequest(
-            req({ url: "https://api.threatmetrix.com/" }),
+            req({ url: "https://threatmetrix.com/" }),
             deps({
                 resolveDns: async () => {
                     throw new Error("should not be called");
@@ -527,7 +528,7 @@ export async function run() {
         const result = await evaluateRequest(
             req({
                 originUrl: "https://bank.example/",
-                url: "https://api.threatmetrix.com/",
+                url: "https://threatmetrix.com/",
             }),
             deps({
                 getAllowedDomains: async () => ["bank.example"],
