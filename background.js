@@ -1,6 +1,9 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
-import { evaluateRequest } from "./global/requestFilter.js";
+import { evaluateRequest, createDnsResultCache } from "./global/requestFilter.js";
+
+/** Session-scoped DNS result cache — not persisted to disk. */
+const dnsResultCache = createDnsResultCache();
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -26,6 +29,7 @@ async function cancel(requestDetails) {
     const decision = await evaluateRequest(requestDetails, {
         getAllowedDomains: () => getItemFromLocal("allowed_domain_list", []),
         resolveDns: (hostname) => browser.dns.resolve(hostname, ["canonical_name"]),
+        dnsCache: dnsResultCache,
     });
 
     if (!decision.cancel) {
@@ -52,7 +56,7 @@ async function cancel(requestDetails) {
     }
 
     if (decision.reason === "threatmetrix") {
-        console.debug("Blocking domain for ThreatMetrix CNAME:", { url: decision.url });
+        console.debug("Blocking domain for LexisNexis/ThreatMetrix match:", { url: decision.url });
         increaseBadge(requestDetails, true);
         addBlockedTrackingHost(decision.url, requestDetails.tabId);
         return { cancel: true };
