@@ -20,25 +20,35 @@
  * Stylesheet for the switch buttons.
  */
 .switch {
-    --height: 24px;
-    --width: 50px;
-    --pill-inset: 4px;
+    --height: 22px;
+    --width: 40px;
+    --pill-inset: 3px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
     cursor: pointer;
- }
+}
 
 .switch input {
-    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 1;
 }
 
 .slider {
     position: relative;
+    display: block;
     height: var(--height);
     width: var(--width);
-    margin-inline-end: 8px;
-    background-color: oklch(from var(--foreground) l c h / 25%);
-
-    transition: background-color .4s;
+    background-color: oklch(from var(--foreground) l c h / 22%);
+    transition: background-color 0.28s ease;
 }
+
 .slider::after {
     position: absolute;
     content: "";
@@ -47,8 +57,8 @@
     left: var(--pill-inset);
     top: var(--pill-inset);
     background-color: var(--light);
-
-    transition: transform .4s;
+    box-shadow: 0 1px 2px color-mix(in oklab, black 20%, transparent);
+    transition: transform 0.28s ease;
 }
 
 body.loading .slider,
@@ -60,12 +70,14 @@ body.loading .slider::after {
 .switch input:checked + .slider {
     background-color: var(--red);
 }
+
 .switch input:checked + .slider::after {
     transform: translateX(calc(var(--width) - var(--height)));
 }
 
-input:focus + .slider {
-    box-shadow: 0 0 1px var(--red);
+.switch input:focus-visible + .slider {
+    outline: 2px solid color-mix(in oklab, var(--red) 70%, white);
+    outline-offset: 2px;
 }
 
 /* Rounded sliders */

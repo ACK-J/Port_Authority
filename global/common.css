@@ -1,17 +1,17 @@
 :root {
     --light: #ffffff;
-    --dark: #23222B;
-    --background: var(--light);
+    --dark: #1f1c24;
+    --background: #f7f4f2;
     --foreground: var(--dark);
-    --red: #800000;
-    --red-text: var(--red);
+    --red: #7a1010;
+    --red-text: #8f1515;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
         /* Colors selected to match the settings page's wrapper container styles */
         --light: #BFBFC9;
-        --dark: #23222B;
+        --dark: #1f1c24;
         --background: var(--dark);
         --foreground: var(--light);
         --red: #B20000; /* Slightly brighter for better contrast against `--background` */
@@ -25,8 +25,10 @@ body {
 
     user-select: none;
 
-    font-family: system-ui, sans-serif;
+    font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
     font-size: 15px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
 
     background-color: var(--background);
     color: var(--foreground);

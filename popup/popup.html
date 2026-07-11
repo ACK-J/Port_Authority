@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="color-scheme" content="light dark">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>Port Authority</title>
 
@@ -12,44 +13,56 @@
 </head>
 
 <body class="loading">
-    <header class="flex-row red-bg">
-        <img src="../icons/logo-32.png" width="32" height="32" alt="PortAuthority Logo">
-        <h1>
-            Port Authority
-        </h1>
+    <header>
+        <div class="brand">
+            <img src="../icons/logo-32.png" width="28" height="28" alt="">
+            <div class="brand-text">
+                <h1>Port Authority</h1>
+                <p class="tagline">Network protection</p>
+            </div>
+        </div>
+        <a href="#" id="settings" title="Open Add-on Options" aria-label="Open add-on options"></a>
     </header>
-    <main class="flex-column">
-        <!-- Settings section -->
-        <section>
-            <!-- Link to the plugin options page, gear icon is now rendered in `#settings::after` to recolor better with CSS -->
-            <a href="#" id="settings" title="Open Add-on Options"></a>
-            <h2>Settings</h2>
-            <!-- Config switches -->
-            <label class="flex-row switch">
-                <input type="checkbox" id="blocking_switch">
-                <span class="slider round"></span>
-                Blocking
+
+    <main>
+        <section class="controls" aria-label="Protection settings">
+            <label class="switch-row">
+                <span class="switch-copy">
+                    <span class="switch-title">Blocking</span>
+                    <span class="switch-hint">Port scans &amp; trackers</span>
+                </span>
+                <span class="switch">
+                    <input type="checkbox" id="blocking_switch">
+                    <span class="slider round" aria-hidden="true"></span>
+                </span>
             </label>
-            <label class="flex-row switch">
-                <input type="checkbox" id="notifications_switch">
-                <span class="slider round"></span>
-                Notifications
+            <label class="switch-row">
+                <span class="switch-copy">
+                    <span class="switch-title">Notifications</span>
+                    <span class="switch-hint">Alert when something is blocked</span>
+                </span>
+                <span class="switch">
+                    <input type="checkbox" id="notifications_switch">
+                    <span class="slider round" aria-hidden="true"></span>
+                </span>
             </label>
         </section>
-        <!-- Per-tab blocking data sections -->
-        <section id="blocked_ports" hidden>
+
+        <section id="blocked_ports" class="activity" hidden>
             <h2>Blocked Port Scans</h2>
-            <ul class="dropzone selectable">
+            <ul class="dropzone selectable activity-list">
                 <!-- Dynamically Populated -->
             </ul>
         </section>
-        <section id="blocked_hosts" hidden>
+
+        <section id="blocked_hosts" class="activity" hidden>
             <h2>Blocked Tracking Scripts</h2>
-            <ul class="dropzone selectable">
+            <ul class="dropzone selectable activity-list">
                 <!-- Dynamically Populated -->
             </ul>
         </section>
     </main>
+
     <script type="module" src="./switch.js"></script>
     <script type="module" src="./PopupUI.js"></script>
 </body>
