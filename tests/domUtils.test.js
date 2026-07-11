@@ -60,7 +60,7 @@ export async function run() {
     {
         const expansion = createElement("label", { class: ["ports-expansion-toggle", "unselectable"] }, [
             createElement("input", { type: "checkbox" }),
-            "View Ports",
+            "2 ports",
         ]);
         const ports = createElement("ul", { class: "ports-expansion-target" }, [
             createElement("li", { class: "port" }, "22"),

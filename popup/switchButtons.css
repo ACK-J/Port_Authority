@@ -75,10 +75,7 @@ body.loading .slider::after {
     transform: translateX(calc(var(--width) - var(--height)));
 }
 
-.switch input:focus-visible + .slider {
-    outline: 2px solid color-mix(in oklab, var(--red) 70%, white);
-    outline-offset: 2px;
-}
+/* Focus ring is owned by `.switch-row:focus-within` in popup.css */
 
 /* Rounded sliders */
 .slider.round {

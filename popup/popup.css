@@ -3,8 +3,8 @@ body {
     --popup-width: 320px;
     --radius: 10px;
     --gap: 0.75rem;
-    --surface: color-mix(in oklab, var(--foreground) 6%, var(--background));
-    --surface-strong: color-mix(in oklab, var(--foreground) 10%, var(--background));
+    --surface: color-mix(in oklab, var(--foreground) 5%, var(--background));
+    --surface-strong: color-mix(in oklab, var(--foreground) 9%, var(--background));
     --border: color-mix(in oklab, var(--foreground) 14%, transparent);
     --muted: color-mix(in oklab, var(--foreground) 62%, var(--background));
     --brand-deep: color-mix(in oklab, var(--red) 88%, black);
@@ -13,6 +13,7 @@ body {
     min-width: var(--popup-width);
     max-width: var(--popup-width);
     overflow-x: hidden;
+    line-height: 1.4;
 }
 
 h1,
@@ -149,6 +150,10 @@ h2 {
     box-shadow: 0 0 0 2px color-mix(in oklab, var(--red) 22%, transparent);
 }
 
+.switch-row .switch input:focus-visible + .slider {
+    outline: none;
+}
+
 .switch-copy {
     display: flex;
     flex-direction: column;
@@ -214,6 +219,7 @@ h2 {
 }
 
 .ports-expansion-toggle {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.28rem;
@@ -234,6 +240,11 @@ h2 {
 
 .ports-expansion-toggle:hover {
     background: color-mix(in oklab, var(--red-text) 18%, transparent);
+}
+
+.ports-expansion-toggle:focus-within {
+    outline: 2px solid color-mix(in oklab, var(--red-text) 55%, transparent);
+    outline-offset: 2px;
 }
 
 .ports-expansion-toggle input {
