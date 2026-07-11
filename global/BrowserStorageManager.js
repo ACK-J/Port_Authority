@@ -1,9 +1,39 @@
 // TODO remove these eventually, that they're needed is a sign of bad code encapsulation
 import { updateBadges, notifyThreatMetrix, notifyPortScanning } from "./browserActions.js";
 import { getPortForProtocol } from "./constants.js";
+import {
+    clearTabActivity,
+    getBadgeForTab,
+    getTabActivitySnapshot,
+    incrementBadgeCounter,
+    loadTabActivityMemory,
+    recordBlockedPort,
+    recordBlockedTrackingHost,
+    resetTabActivityForNavigation,
+    resetTabActivityMemory,
+} from "./tabActivity.js";
 
 // Key required to access the same lock that's used to control write access to localStorage
 const STORAGE_LOCK_KEY = "port_authority_storage_lock";
+
+/** Coalesce hot-path activity writes so blocked-request storms cannot queue lock work. */
+const TAB_ACTIVITY_PERSIST_MS = 75;
+
+/** Defensive caps so a pathological page cannot grow per-tab maps without bound. */
+const MAX_BLOCKED_HOSTS_PER_TAB = 200;
+const MAX_PORTS_PER_HOST = 100;
+
+/** @type {ReturnType<typeof setTimeout> | null} */
+let tabActivityPersistTimer = null;
+/** @type {Promise<void> | null} */
+let tabActivityPersistInFlight = null;
+/** Bumped to invalidate in-flight persists that started before a session reset. */
+let tabActivityPersistEpoch = 0;
+
+/** @type {string[] | undefined} */
+let allowedDomainListCache;
+/** @type {boolean | undefined} */
+let notificationsAllowedCache;
 
 /**
  * @private
@@ -68,9 +98,7 @@ export async function getItemFromLocal(key, default_value) {
     return navigator.locks.request(STORAGE_LOCK_KEY,
         { mode: "shared" }, // allows for simultaneous reads that are guaranteed to not occur in the middle of a `modifyItemInLocal` call
         async (lock) => {
-            const value = await UNLOCKED_getItemFromLocal(key, default_value);
-            console.debug("Reading storage:", {[key]: value});
-            return value;
+            return UNLOCKED_getItemFromLocal(key, default_value);
         }
     );
 }
@@ -92,7 +120,6 @@ export async function setItemInLocal(key, value) {
     // Acquire lock for write access before updating
     return navigator.locks.request(STORAGE_LOCK_KEY, async (lock) => {
         await browser.storage.local.set({ [key]: stringifiedValue });
-        console.debug("Setting storage:", {[key]: value});
         return value;
     });
 }
@@ -140,13 +167,8 @@ export async function modifyItemInLocal(key, default_value, mutate) {
         // Re-stringify and save the changed value
         await browser.storage.local.set({
             [key]: JSON.stringify(new_value)
-        }); 
-
-        console.debug("Updating storage value: ", key, {
-            ["old " + key]: initial_value,
-            ["new " + key]: new_value
         });
-        
+
         // Return result of modification so can use later
         return new_value;
     });
@@ -202,102 +224,274 @@ export async function clearItemsInLocal(default_structure = {}) {
 
 
 /**
- * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
- * 
- * @param {URL} url URL object built from the url of the tab associated with the tabID
- * @param {string} tabId Id the of the browser tab the port check was executed in
+ * In-memory allowlist used by the blocking hot path.
+ * Avoids a shared storage lock + JSON.parse on every webRequest (issue #52).
+ * @returns {Promise<string[]>}
  */
-export async function addBlockedPortToHost(url, tabIdString) {
-    const tabId = parseInt(tabIdString);
+export async function getAllowedDomainListCached() {
+    if (allowedDomainListCache !== undefined) {
+        return allowedDomainListCache;
+    }
+    allowedDomainListCache = await getItemFromLocal("allowed_domain_list", []);
+    if (!Array.isArray(allowedDomainListCache)) {
+        allowedDomainListCache = [];
+    }
+    return allowedDomainListCache;
+}
+
+/**
+ * Keep the allowlist cache coherent with settings / storage writes.
+ * @param {string[] | undefined} [nextValue] Parsed list, or omit to force reload on next read
+ */
+export function syncAllowedDomainListCache(nextValue) {
+    if (nextValue === undefined) {
+        allowedDomainListCache = undefined;
+        return;
+    }
+    allowedDomainListCache = Array.isArray(nextValue) ? nextValue : [];
+}
+
+/**
+ * @returns {Promise<boolean>}
+ */
+async function getNotificationsAllowedCached() {
+    if (notificationsAllowedCache !== undefined) {
+        return notificationsAllowedCache;
+    }
+    notificationsAllowedCache = await getItemFromLocal("notificationsAllowed", true);
+    return Boolean(notificationsAllowedCache);
+}
+
+/**
+ * @param {boolean | undefined} [nextValue]
+ */
+export function syncNotificationsAllowedCache(nextValue) {
+    if (nextValue === undefined) {
+        notificationsAllowedCache = undefined;
+        return;
+    }
+    notificationsAllowedCache = Boolean(nextValue);
+}
+
+/**
+ * Apply storage.onChanged updates to in-memory settings caches.
+ * @param {{ [key: string]: { newValue?: string } }} changes
+ */
+export function applyStorageChangesToCaches(changes) {
+    if (Object.prototype.hasOwnProperty.call(changes, "allowed_domain_list")) {
+        const raw = changes.allowed_domain_list?.newValue;
+        if (raw === undefined) {
+            syncAllowedDomainListCache(undefined);
+        } else {
+            try {
+                syncAllowedDomainListCache(JSON.parse(raw));
+            } catch {
+                syncAllowedDomainListCache(undefined);
+            }
+        }
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, "notificationsAllowed")) {
+        const raw = changes.notificationsAllowed?.newValue;
+        if (raw === undefined) {
+            syncNotificationsAllowedCache(undefined);
+        } else {
+            try {
+                syncNotificationsAllowedCache(JSON.parse(raw));
+            } catch {
+                syncNotificationsAllowedCache(undefined);
+            }
+        }
+    }
+}
+
+function clearTabActivityPersistTimer() {
+    if (tabActivityPersistTimer !== null) {
+        clearTimeout(tabActivityPersistTimer);
+        tabActivityPersistTimer = null;
+    }
+}
+
+function scheduleTabActivityPersist() {
+    if (tabActivityPersistTimer !== null) return;
+    tabActivityPersistTimer = setTimeout(() => {
+        tabActivityPersistTimer = null;
+        const epoch = tabActivityPersistEpoch;
+        tabActivityPersistInFlight = persistTabActivityNow(epoch).finally(() => {
+            tabActivityPersistInFlight = null;
+        });
+    }, TAB_ACTIVITY_PERSIST_MS);
+}
+
+/**
+ * Flush in-memory tab activity to extension storage (single coalesced write path).
+ * @returns {Promise<void>}
+ */
+export async function flushTabActivity() {
+    clearTabActivityPersistTimer();
+    if (tabActivityPersistInFlight) {
+        await tabActivityPersistInFlight;
+    }
+    // A mutation during the await may have armed a new debounce timer — drop it
+    // and write the latest snapshot once.
+    clearTabActivityPersistTimer();
+    await persistTabActivityNow(tabActivityPersistEpoch);
+}
+
+async function persistTabActivityNow(epoch = tabActivityPersistEpoch) {
+    // Skip stale writers that began before a session reset.
+    if (epoch !== tabActivityPersistEpoch) return;
+
+    const snapshot = getTabActivitySnapshot();
+    if (epoch !== tabActivityPersistEpoch) return;
+
+    // One exclusive lock section would be nicer, but existing helpers already
+    // serialize via STORAGE_LOCK_KEY — three quick writes beat N per-request writes.
+    await setItemInLocal("badges", snapshot.badges);
+    await setItemInLocal("blocked_ports", snapshot.blocked_ports);
+    await setItemInLocal("blocked_hosts", snapshot.blocked_hosts);
+}
+
+/**
+ * Clear per-tab activity when a tab closes or navigates.
+ * @param {number|string} tabId
+ */
+export function clearTabActivityData(tabId) {
+    clearTabActivity(tabId);
+    scheduleTabActivityPersist();
+}
+
+/**
+ * Reset session activity in memory and storage.
+ * Prevents stale/corrupt per-tab blobs from prior sessions from accumulating (#52).
+ */
+export async function resetSessionTabActivity() {
+    clearTabActivityPersistTimer();
+    // Invalidate any in-flight writer so it cannot resurrect stale maps after clear.
+    tabActivityPersistEpoch += 1;
+    const epoch = tabActivityPersistEpoch;
+
+    if (tabActivityPersistInFlight) {
+        try {
+            await tabActivityPersistInFlight;
+        } catch {
+            // ignore — we're about to overwrite anyway
+        }
+    }
+
+    // Drop timers armed by mutations while we awaited the prior persist.
+    clearTabActivityPersistTimer();
+    resetTabActivityMemory();
+
+    if (epoch !== tabActivityPersistEpoch) return;
+
+    await setItemInLocal("badges", {});
+    await setItemInLocal("blocked_ports", {});
+    await setItemInLocal("blocked_hosts", {});
+}
+
+/**
+ * Test helper: load storage values into the in-memory activity maps.
+ */
+export async function hydrateTabActivityFromStorage() {
+    const [badges, blocked_ports, blocked_hosts] = await Promise.all([
+        getItemFromLocal("badges", {}),
+        getItemFromLocal("blocked_ports", {}),
+        getItemFromLocal("blocked_hosts", {}),
+    ]);
+    loadTabActivityMemory({ badges, blocked_ports, blocked_hosts });
+}
+
+/**
+ * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
+ *
+ * @param {URL} url URL object built from the url of the tab associated with the tabID
+ * @param {string|number} tabIdString Id the of the browser tab the port check was executed in
+ */
+export function addBlockedPortToHost(url, tabIdString) {
+    const tabId = parseInt(tabIdString, 10);
+    if (Number.isNaN(tabId) || tabId < 0) return false;
+
     const host = url.host.split(":")[0]; // TODO replace with more robust method to get host, this might act funky around IPv6 addresses
     const port = "" + (url.port || getPortForProtocol(url.protocol));
 
-    // Grab the blocked ports object from extensions storage
-    return modifyItemInLocal("blocked_ports", {}, (blocked_ports) => {
-        // Grab the array of ports blocked for the host url
-        const tab_hosts = blocked_ports[tabId] || {};
-        let hosts_ports = tab_hosts[host];
-        if (Array.isArray(hosts_ports)) {
-            // Add the port to the array of blocked ports for this host IFF the port doesn't exist
-            if (hosts_ports.indexOf(port) === -1) {
-                hosts_ports = tab_hosts[host].concat([port]);
-                tab_hosts[host] = hosts_ports;
-                blocked_ports[tabId] = tab_hosts;
-            }
-        } else {
-            tab_hosts[host] = [port];
-            blocked_ports[tabId] = tab_hosts;
-        }
-        return blocked_ports;
-    });
+    const changed = recordBlockedPort(tabId, host, port, MAX_PORTS_PER_HOST);
+    if (changed) scheduleTabActivityPersist();
+    return changed;
 }
 
 /**
- * Adds the host and port of the provided url to a list of hosts and ports that were blocked from port scanning.
- * 
+ * Adds the host of the provided url to the list of blocked tracking hosts for the tab.
+ *
  * @param {URL} url URL object built from the url of the tab associated with the tabID
- * @param {string} tabId Id the of the browser tab the port check was executed in
+ * @param {string|number} tabIdString Id the of the browser tab the port check was executed in
  */
-export async function addBlockedTrackingHost(url, tabIdString) {
-    const tabId = parseInt(tabIdString);
+export function addBlockedTrackingHost(url, tabIdString) {
+    const tabId = parseInt(tabIdString, 10);
+    if (Number.isNaN(tabId) || tabId < 0) return false;
+
     const host = url.host;
-
-    return modifyItemInLocal("blocked_hosts", {}, (blocked_hosts_tabs) => {
-        let blocked_hosts = blocked_hosts_tabs[tabId] || [];
-
-        if (blocked_hosts.indexOf(host) === -1) {
-            blocked_hosts = blocked_hosts.concat([host]);
-        }
-
-        blocked_hosts_tabs[tabId] = blocked_hosts;
-
-        return blocked_hosts_tabs;
-    });
+    const changed = recordBlockedTrackingHost(tabId, host, MAX_BLOCKED_HOSTS_PER_TAB);
+    if (changed) scheduleTabActivityPersist();
+    return changed;
 }
+
 /**
- * Increases the badged by one.
- * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ * Increases the badge by one and optionally fires a one-shot notification.
+ * Memory update is synchronous; disk persistence is coalesced (issue #52).
+ *
+ * @param {{ tabId?: number, url?: string, originUrl?: string } | null} request
+ * @param {boolean} isThreatMetrix
+ * @returns {Promise<void>}
  */
 export async function increaseBadge(request, isThreatMetrix) {
     const tabId = request?.tabId;
     const url = request?.url;
 
     // Error checking for invalid request
-    if (!request || tabId === -1) {
-        console.error('Invalid `request` passed to increaseBadge:', {request, isThreatMetrix});
+    if (!request || tabId === -1 || tabId === undefined || tabId === null) {
+        console.error("Invalid `request` passed to increaseBadge:", { request, isThreatMetrix });
         return;
-    };
+    }
 
-    // Actual badge update
-    return modifyItemInLocal("badges", {}, async (badges) => {
-        // Initialize badge info for the tab if empty
-        if (!badges[tabId]) {
-            badges[tabId] = {
-                counter: 0,
-                alerted: 0,
-                lastURL: url
-            };
+    const { counter, shouldNotify } = incrementBadgeCounter(
+        tabId,
+        // Prefer the page URL so navigation cleanup compares against tab URLs.
+        request.originUrl || url
+    );
+    updateBadges(counter, tabId);
+    scheduleTabActivityPersist();
+
+    if (!shouldNotify) return;
+
+    const notifications_enabled = await getNotificationsAllowedCached();
+    if (!notifications_enabled) return;
+
+    try {
+        const host = new URL(request.originUrl).host;
+        if (isThreatMetrix) {
+            await notifyThreatMetrix(host);
+        } else {
+            await notifyPortScanning(host);
         }
+    } catch (error) {
+        console.error("Failed to notify for blocked request:", { request, error });
+    }
+}
 
-        // Update badge number
-        badges[tabId].counter += 1;
+/**
+ * Reset badge counters and blocked lists after a tab navigates to a new URL.
+ * @param {number|string} tabId
+ * @param {string} lastURL
+ */
+export function resetTabDataForNavigation(tabId, lastURL) {
+    resetTabActivityForNavigation(tabId, lastURL);
+    scheduleTabActivityPersist();
+}
 
-        // TODO better separate concerns between storage related things and browser actions
-        // Update badge text
-        updateBadges(badges[tabId].counter, tabId);
-
-        // TODO better separate concerns between storage related things and browser actions
-        // Update notification alerted status
-        const notifications_enabled = await UNLOCKED_getItemFromLocal("notificationsAllowed", true);
-        if (badges[tabId].alerted === 0 && notifications_enabled) {
-            badges[tabId].alerted += 1;
-            if (isThreatMetrix) {
-                notifyThreatMetrix(new URL(request.originUrl).host);
-            } else {
-                notifyPortScanning(new URL(request.originUrl).host);
-            }
-        }
-
-        return badges;
-    });
+/**
+ * @param {number|string} tabId
+ * @returns {import("./tabActivity.js").BadgeInfo | undefined}
+ */
+export function peekBadgeForTab(tabId) {
+    return getBadgeForTab(tabId);
 }

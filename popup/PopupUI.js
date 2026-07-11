@@ -3,15 +3,27 @@ import { getActiveTabId } from "../global/browserActions.js";
 import { createElement } from "../global/domUtils.js";
 
 /**
- * Data fetching only, separated from rendering logic
- * @param {"blocked_ports" | "blocked_hosts"} data_type Which storage key to extract the blocking activity data from
+ * Prefer live background memory (issue #52 coalesced writes) with storage fallback.
+ * @param {"blocked_ports" | "blocked_hosts"} data_type
  */
 async function fetch_tabs_blocking_data(data_type) {
-    // TODO rework this when flipping data structure as discussed in issue #47: https://github.com/ACK-J/Port_Authority/issues/47
+    const tab_id = await getActiveTabId();
+
+    try {
+        const live = await browser.runtime.sendMessage({
+            type: "getTabActivity",
+            tabId: tab_id,
+        });
+        if (live && Object.prototype.hasOwnProperty.call(live, data_type)) {
+            return live[data_type];
+        }
+    } catch (error) {
+        console.warn("Falling back to storage for popup data:", error);
+    }
+
+    // TODO rework this when flipping data structure as discussed in issue #47
     const all_tabs_data = await getItemFromLocal(data_type, {});
     if (Object.keys(all_tabs_data).length === 0) return;
-
-    const tab_id = await getActiveTabId();
     return all_tabs_data[tab_id];
 }
 

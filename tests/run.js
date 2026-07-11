@@ -15,6 +15,7 @@ const suites = [
     "./allowlist.test.js",
     "./domUtils.test.js",
     "./browserActions.test.js",
+    "./tabActivity.test.js",
     "./BrowserStorageManager.test.js",
     "./manifest.test.js",
 ];

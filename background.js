@@ -1,22 +1,42 @@
-import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
-    addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
+import {
+    getItemFromLocal,
+    setItemInLocal,
+    addBlockedPortToHost,
+    addBlockedTrackingHost,
+    increaseBadge,
+    getAllowedDomainListCached,
+    applyStorageChangesToCaches,
+    resetSessionTabActivity,
+    clearTabActivityData,
+    resetTabDataForNavigation,
+    peekBadgeForTab,
+    flushTabActivity,
+} from "./global/BrowserStorageManager.js";
+import { getTabActivitySnapshot } from "./global/tabActivity.js";
 import { evaluateRequest, createDnsResultCache } from "./global/requestFilter.js";
 
 /** Session-scoped DNS result cache — not persisted to disk. */
 const dnsResultCache = createDnsResultCache();
 
-async function startup(){
-    // No need to check and initialize notification, state, and allow list values as they will 
+async function startup() {
+    // No need to check and initialize notification, state, and allow list values as they will
     // fall back to the default values until explicitly set
     console.log("Startup called");
 
-	// Get the blocking state from cold storage
-    const state = await getItemFromLocal("blocking_enabled", true); 
-	if (state === true) {
-	    start();
-	} else {
-	    stop();
-	}
+    // Drop stale/corrupt per-tab activity left from prior sessions (issue #52).
+    // Popup data is session-scoped in practice; tabs reload and repopulate anyway.
+    await resetSessionTabActivity();
+
+    // Warm the allowlist cache so the first requests avoid a storage round-trip.
+    await getAllowedDomainListCached();
+
+    // Get the blocking state from cold storage
+    const state = await getItemFromLocal("blocking_enabled", true);
+    if (state === true) {
+        await start();
+    } else {
+        await stop();
+    }
 }
 
 function blockPortScan(requestDetails, url) {
@@ -27,21 +47,16 @@ function blockPortScan(requestDetails, url) {
 
 async function cancel(requestDetails) {
     const decision = await evaluateRequest(requestDetails, {
-        getAllowedDomains: () => getItemFromLocal("allowed_domain_list", []),
+        getAllowedDomains: () => getAllowedDomainListCached(),
         resolveDns: (hostname) => browser.dns.resolve(hostname, ["canonical_name"]),
         dnsCache: dnsResultCache,
     });
 
     if (!decision.cancel) {
-        if (decision.reason === "first-party") {
-            console.debug("Same-origin/first-party request allowed:", {
-                origin: requestDetails.originUrl,
-                request: requestDetails.url,
-            });
-        } else if (decision.reason === "unparseable-origin") {
+        // Avoid per-request console I/O on the hot allow path — logging every
+        // first-party asset on SPAs (Figma, etc.) retains huge console buffers.
+        if (decision.reason === "unparseable-origin") {
             console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
-        } else if (decision.reason === "allowlisted") {
-            console.debug("Aborted filtering on domain due to whitelist: ", requestDetails.originUrl);
         } else if (decision.reason === "unparseable-url") {
             console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url);
         } else if (decision.reason === "dns-failure") {
@@ -51,12 +66,10 @@ async function cancel(requestDetails) {
     }
 
     if (decision.reason === "portscan") {
-        console.debug("Blocking domain for portscanning: ", decision.url);
         return blockPortScan(requestDetails, decision.url);
     }
 
     if (decision.reason === "threatmetrix") {
-        console.debug("Blocking domain for LexisNexis/ThreatMetrix match:", { url: decision.url });
         increaseBadge(requestDetails, true);
         addBlockedTrackingHost(decision.url, requestDetails.tabId);
         return { cancel: true };
@@ -65,9 +78,15 @@ async function cancel(requestDetails) {
     return { cancel: false };
 } // end cancel()
 
-async function start() {  // Enables blocking
+async function start() {
+    // Enables blocking
     try {
-        //Add event listener
+        if (browser.webRequest.onBeforeRequest.hasListener(cancel)) {
+            console.log("Blocking listener already attached");
+            await setItemInLocal("blocking_enabled", true);
+            return;
+        }
+
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
             { urls: ["<all_urls>"] }, // Match all HTTP, HTTPS, FTP, FTPS, WS, WSS URLs.
@@ -81,66 +100,40 @@ async function start() {  // Enables blocking
     }
 }
 
-async function stop() {  // Disables blocking
+async function stop() {
+    // Disables blocking
     try {
-        //Remove event listener
-        browser.webRequest.onBeforeRequest.removeListener(cancel);
-
-        console.log("Removed `onBeforeRequest` listener successfully: blocking disabled");
+        if (browser.webRequest.onBeforeRequest.hasListener(cancel)) {
+            browser.webRequest.onBeforeRequest.removeListener(cancel);
+            console.log("Removed `onBeforeRequest` listener successfully: blocking disabled");
+        }
         await setItemInLocal("blocking_enabled", false);
     } catch (e) {
         console.error("STOP() ", e);
     }
 }
 
-async function isListening() { // returns if blocking is on
-    const storage_state = await getItemFromLocal("blocking_enabled", true);
-    const listener_attached_state = browser.webRequest.onBeforeRequest.hasListener(cancel);
+/**
+ * Called when each tab is updated, and if the URL has changed.
+ * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ */
+function handleUpdated(tabId, changeInfo, tabInfo) {
+    if (!changeInfo.url) return;
 
-    // If storage says that blocking is enabled when it actually isn't, soft throw an error to the console
-    if (storage_state !== listener_attached_state) {
-        console.error("Mismatch in blocking state according to storage value and listener attached status:", {
-            storage_state,
-            listener_attached_state
-        });
+    const badge = peekBadgeForTab(tabId);
+    if (!badge) return;
+
+    if (badge.lastURL !== changeInfo.url) {
+        resetTabDataForNavigation(tabId, tabInfo.url);
     }
-
-    // Rely on the actual listener being attached as the ground source of truth over what storage says
-    return listener_attached_state;
 }
 
 /**
- * Call by each tab is updated.
- * And if url has changed.
- * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
+ * Closed tabs must drop their activity maps — otherwise badges/blocked_* grow
+ * without bound across a long browsing session (issue #52 / #47).
  */
-async function handleUpdated(tabId, changeInfo, tabInfo) {
-    // TODO investigate a better way to interact with current locking practices
-    const badges = await getItemFromLocal("badges", {});
-    if (!badges[tabId] || !changeInfo.url) return;
-
-    if (badges[tabId].lastURL !== changeInfo.url) {
-        badges[tabId] = {
-            counter: 0,
-            alerted: 0,
-            lastURL: tabInfo.url
-        };
-        await setItemInLocal("badges", badges);
-
-        // Clear out the blocked ports for the current tab
-        await modifyItemInLocal("blocked_ports", {},
-            (blocked_ports_object) => {
-                delete blocked_ports_object[tabId];
-                return blocked_ports_object;
-            });
-
-        // Clear out the hosts for the current tab
-        await modifyItemInLocal("blocked_hosts", {},
-            (blocked_hosts_object) => {
-                delete blocked_hosts_object[tabId];
-                return blocked_hosts_object;
-            });
-    }
+function handleRemoved(tabId) {
+    clearTabActivityData(tabId);
 }
 
 const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
@@ -151,21 +144,36 @@ async function onMessage(message, sender) {
        https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/onMessageExternal
     */
     if (sender.origin !== extensionOrigin) {
-        console.warn('Message from unexpected origin:', sender.url);
+        console.warn("Message from unexpected origin:", sender.url);
         return;
     }
 
     switch (message.type) {
-        case 'toggleEnabled':
+        case "toggleEnabled":
             message.value ? await start() : await stop();
             break;
+        case "getTabActivity": {
+            // Popup reads live memory (then storage is only a durability backup).
+            await flushTabActivity();
+            const snapshot = getTabActivitySnapshot();
+            const tabId = message.tabId;
+            return {
+                blocked_ports: snapshot.blocked_ports[tabId] ?? snapshot.blocked_ports[String(tabId)] ?? {},
+                blocked_hosts: snapshot.blocked_hosts[tabId] ?? snapshot.blocked_hosts[String(tabId)] ?? [],
+            };
+        }
         default:
-            console.warn('Port Authority: unknown message: ', message);
+            console.warn("Port Authority: unknown message: ", message);
             break;
     }
 }
 browser.runtime.onMessage.addListener(onMessage);
 
+browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    applyStorageChangesToCaches(changes);
+});
+
 startup();
-// Call by each tab is updated.
 browser.tabs.onUpdated.addListener(handleUpdated);
+browser.tabs.onRemoved.addListener(handleRemoved);

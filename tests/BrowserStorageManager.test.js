@@ -134,12 +134,14 @@ async function runQuiet() {
 
     suite("addBlockedPortToHost");
     {
-        await storageApi.clearItemsInLocal({});
-        await storageApi.addBlockedPortToHost(new URL("http://127.0.0.1:22/"), "7");
-        await storageApi.addBlockedPortToHost(new URL("http://127.0.0.1:80/"), "7");
-        await storageApi.addBlockedPortToHost(new URL("http://127.0.0.1:22/"), "7");
-        await storageApi.addBlockedPortToHost(new URL("http://10.0.0.1:445/"), "7");
-        await storageApi.addBlockedPortToHost(new URL("https://192.168.0.1/"), "8");
+        await storageApi.resetSessionTabActivity();
+
+        storageApi.addBlockedPortToHost(new URL("http://127.0.0.1:22/"), "7");
+        storageApi.addBlockedPortToHost(new URL("http://127.0.0.1:80/"), "7");
+        storageApi.addBlockedPortToHost(new URL("http://127.0.0.1:22/"), "7");
+        storageApi.addBlockedPortToHost(new URL("http://10.0.0.1:445/"), "7");
+        storageApi.addBlockedPortToHost(new URL("https://192.168.0.1/"), "8");
+        await storageApi.flushTabActivity();
 
         const ports = await storageApi.getItemFromLocal("blocked_ports", {});
         assertEqual(ports[7]["127.0.0.1"], ["22", "80"], "ports collected without dupes");
@@ -147,18 +149,20 @@ async function runQuiet() {
         assertEqual(ports[8]["192.168.0.1"], ["443"], "default https port recorded");
     }
     {
-        await storageApi.addBlockedPortToHost(new URL("http://172.16.0.1/"), "9");
+        storageApi.addBlockedPortToHost(new URL("http://172.16.0.1/"), "9");
+        await storageApi.flushTabActivity();
         const ports = await storageApi.getItemFromLocal("blocked_ports", {});
         assertEqual(ports[9]["172.16.0.1"], ["80"], "default http port");
     }
 
     suite("addBlockedTrackingHost");
     {
-        await storageApi.clearItemsInLocal({});
-        await storageApi.addBlockedTrackingHost(new URL("https://cdn.brand.com/tmx.js"), "3");
-        await storageApi.addBlockedTrackingHost(new URL("https://cdn.brand.com/tmx.js"), "3");
-        await storageApi.addBlockedTrackingHost(new URL("https://other.brand.com/x"), "3");
-        await storageApi.addBlockedTrackingHost(new URL("https://cdn.brand.com/tmx.js"), "4");
+        await storageApi.resetSessionTabActivity();
+        storageApi.addBlockedTrackingHost(new URL("https://cdn.brand.com/tmx.js"), "3");
+        storageApi.addBlockedTrackingHost(new URL("https://cdn.brand.com/tmx.js"), "3");
+        storageApi.addBlockedTrackingHost(new URL("https://other.brand.com/x"), "3");
+        storageApi.addBlockedTrackingHost(new URL("https://cdn.brand.com/tmx.js"), "4");
+        await storageApi.flushTabActivity();
 
         const hosts = await storageApi.getItemFromLocal("blocked_hosts", {});
         assertEqual(hosts[3], ["cdn.brand.com", "other.brand.com"], "unique hosts per tab");
@@ -168,6 +172,8 @@ async function runQuiet() {
     suite("increaseBadge");
     {
         await storageApi.clearItemsInLocal({ notificationsAllowed: true });
+        await storageApi.resetSessionTabActivity();
+        storageApi.syncNotificationsAllowedCache(true);
         badges.length = 0;
         notifications.length = 0;
 
@@ -179,6 +185,7 @@ async function runQuiet() {
             { tabId: 11, url: "http://127.0.0.1:80/", originUrl: "https://scanner.example/" },
             false
         );
+        await storageApi.flushTabActivity();
 
         const badgeState = await storageApi.getItemFromLocal("badges", {});
         assertEqual(badgeState[11].counter, 2, "badge counter increments");
@@ -188,6 +195,8 @@ async function runQuiet() {
     }
     {
         await storageApi.clearItemsInLocal({ notificationsAllowed: true });
+        await storageApi.resetSessionTabActivity();
+        storageApi.syncNotificationsAllowedCache(true);
         notifications.length = 0;
         await storageApi.increaseBadge(
             { tabId: 12, url: "https://tmx.example/", originUrl: "https://shop.example/" },
@@ -197,6 +206,8 @@ async function runQuiet() {
     }
     {
         await storageApi.clearItemsInLocal({ notificationsAllowed: false });
+        await storageApi.resetSessionTabActivity();
+        storageApi.syncNotificationsAllowedCache(false);
         notifications.length = 0;
         await storageApi.increaseBadge(
             { tabId: 13, url: "http://127.0.0.1/", originUrl: "https://x.example/" },
@@ -208,6 +219,80 @@ async function runQuiet() {
         await storageApi.increaseBadge(null, false);
         await storageApi.increaseBadge({ tabId: -1, url: "http://x/" }, false);
         assert(true, "invalid increaseBadge calls do not throw");
+    }
+
+    suite("tab activity coalescing and cleanup (issue #52)");
+    {
+        await storageApi.resetSessionTabActivity();
+
+        let setCalls = 0;
+        const innerSet = storage.set.bind(storage);
+        storage.set = async (obj) => {
+            setCalls += 1;
+            return innerSet(obj);
+        };
+
+        const setsBeforeBurst = setCalls;
+        for (let i = 0; i < 500; i++) {
+            storageApi.addBlockedTrackingHost(
+                new URL(`https://h-${i % 5}.online-metrix.net/x`),
+                "42"
+            );
+        }
+        assertEqual(setCalls, setsBeforeBurst, "no storage writes during sync blocked-host burst");
+
+        await storageApi.flushTabActivity();
+        assert(setCalls > setsBeforeBurst, "flush persists coalesced activity");
+
+        const hosts = await storageApi.getItemFromLocal("blocked_hosts", {});
+        assertEqual(hosts[42].length, 5, "unique hosts retained after burst");
+
+        storageApi.syncNotificationsAllowedCache(false);
+        const setsBeforeBadges = setCalls;
+        for (let i = 0; i < 100; i++) {
+            await storageApi.increaseBadge(
+                {
+                    tabId: 42,
+                    url: `https://h-${i % 5}.online-metrix.net/x`,
+                    originUrl: "https://bank.example/",
+                },
+                true
+            );
+        }
+        await storageApi.flushTabActivity();
+        const badgeState = await storageApi.getItemFromLocal("badges", {});
+        assertEqual(badgeState[42].counter, 100, "all increments applied in memory");
+        assert(
+            setCalls - setsBeforeBadges <= 10,
+            "badge storm does not create one storage write per increment"
+        );
+
+        storageApi.clearTabActivityData(42);
+        await storageApi.flushTabActivity();
+        const clearedHosts = await storageApi.getItemFromLocal("blocked_hosts", {});
+        const clearedBadges = await storageApi.getItemFromLocal("badges", {});
+        assertEqual(clearedHosts[42], undefined, "tab close clears blocked hosts");
+        assertEqual(clearedBadges[42], undefined, "tab close clears badges");
+
+        storage.set = innerSet;
+    }
+
+    suite("allowlist cache");
+    {
+        await storageApi.setItemInLocal("allowed_domain_list", ["a.example"]);
+        storageApi.syncAllowedDomainListCache(undefined);
+        const first = await storageApi.getAllowedDomainListCached();
+        assertEqual(first, ["a.example"], "cache loads from storage");
+
+        await storage.set({ allowed_domain_list: JSON.stringify(["stale-ignored.example"]) });
+        const second = await storageApi.getAllowedDomainListCached();
+        assertEqual(second, ["a.example"], "hot path keeps cached allowlist");
+
+        storageApi.applyStorageChangesToCaches({
+            allowed_domain_list: { newValue: JSON.stringify(["fresh.example"]) },
+        });
+        const third = await storageApi.getAllowedDomainListCached();
+        assertEqual(third, ["fresh.example"], "storage.onChanged refreshes cache");
     }
 
     assert(typeof storageApi.getItemFromLocal === "function", "API exported");
