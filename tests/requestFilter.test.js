@@ -5,9 +5,9 @@ import {
     evaluateRequest,
     THREATMETRIX_SUFFIXES,
     matchesThreatMetrixHost,
-    normalizeHostname,
     createDnsResultCache,
 } from "../global/requestFilter.js";
+import { normalizeHostname } from "../global/privateAddress.js";
 import { suite, assert, assertEqual } from "./harness.js";
 
 function req(overrides = {}) {

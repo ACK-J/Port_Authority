@@ -12,8 +12,6 @@ import {
     normalizeHostname,
 } from "./privateAddress.js";
 
-export { normalizeHostname };
-
 /**
  * LexisNexis / ThreatMetrix infrastructure suffixes.
  * Auditable list — prefer appending verified domains here over regex sprawl.

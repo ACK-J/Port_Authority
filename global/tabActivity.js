@@ -32,7 +32,7 @@ export function getTabActivitySnapshot() {
 }
 
 export function getBadgeForTab(tabId) {
-    return badges[tabId] ?? badges[String(tabId)];
+    return badges[tabId];
 }
 
 /**
@@ -61,6 +61,10 @@ export function resetTabActivityForNavigation(tabId, lastURL) {
     };
 }
 
+/** Defensive caps so a pathological page cannot grow per-tab maps without bound. */
+export const MAX_PORTS_PER_HOST = 100;
+export const MAX_BLOCKED_HOSTS_PER_TAB = 200;
+
 /**
  * Record a blocked port-scan target.
  * @param {number} tabId
@@ -68,7 +72,7 @@ export function resetTabActivityForNavigation(tabId, lastURL) {
  * @param {string} port
  * @returns {boolean} true when a new port was recorded
  */
-export function recordBlockedPort(tabId, host, port, maxPortsPerHost = 100) {
+export function recordBlockedPort(tabId, host, port, maxPortsPerHost = MAX_PORTS_PER_HOST) {
     const tabHosts = blockedPorts[tabId] || (blockedPorts[tabId] = {});
     const ports = tabHosts[host];
     if (Array.isArray(ports)) {
@@ -87,7 +91,7 @@ export function recordBlockedPort(tabId, host, port, maxPortsPerHost = 100) {
  * @param {string} host
  * @returns {boolean} true when a new host was recorded
  */
-export function recordBlockedTrackingHost(tabId, host, maxHostsPerTab = 200) {
+export function recordBlockedTrackingHost(tabId, host, maxHostsPerTab = MAX_BLOCKED_HOSTS_PER_TAB) {
     const list = blockedHosts[tabId] || (blockedHosts[tabId] = []);
     if (list.includes(host)) return false;
     if (list.length >= maxHostsPerTab) return false;
@@ -131,22 +135,6 @@ export function resetTabActivityMemory() {
     badges = {};
     blockedPorts = {};
     blockedHosts = {};
-}
-
-/**
- * Hydrate memory from already-parsed storage values (tests / rare recovery).
- * @param {{ badges?: object, blocked_ports?: object, blocked_hosts?: object }} data
- */
-export function loadTabActivityMemory(data = {}) {
-    badges = data.badges && typeof data.badges === "object" ? data.badges : {};
-    blockedPorts =
-        data.blocked_ports && typeof data.blocked_ports === "object"
-            ? data.blocked_ports
-            : {};
-    blockedHosts =
-        data.blocked_hosts && typeof data.blocked_hosts === "object"
-            ? data.blocked_hosts
-            : {};
 }
 
 function clone(value) {

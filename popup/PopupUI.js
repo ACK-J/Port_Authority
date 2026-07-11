@@ -8,6 +8,7 @@ import { createElement } from "../global/domUtils.js";
  */
 async function fetch_tabs_blocking_data(data_type) {
     const tab_id = await getActiveTabId();
+    if (tab_id == null) return;
 
     try {
         const live = await browser.runtime.sendMessage({

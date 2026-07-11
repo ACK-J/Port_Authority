@@ -86,4 +86,9 @@ export async function run() {
         assertEqual(tabQueries[0].active, true, "queries active tab");
         assertEqual(tabQueries[0].currentWindow, true, "queries current window");
     }
+    {
+        globalThis.browser.tabs.query = async () => [];
+        const id = await actions.getActiveTabId();
+        assertEqual(id, undefined, "no active tab returns undefined");
+    }
 }

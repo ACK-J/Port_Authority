@@ -62,7 +62,11 @@ export async function run() {
     assert(requestFilter.includes("lnrsoftware.com"), "lists lnrsoftware.com");
     assert(requestFilter.includes('from "./allowlist.js"'), "uses shared allowlist helper");
     assert(requestFilter.includes("isHostAllowlisted"), "delegates allowlist checks");
-    assert(requestFilter.includes("normalizeHostname"), "normalizes trailing-dot hostnames");
+    assert(requestFilter.includes('from "./privateAddress.js"'), "imports privateAddress helpers");
+
+    suite("privateAddress.js owns hostname normalization");
+    const privateAddress = readText("global/privateAddress.js");
+    assert(privateAddress.includes("export function normalizeHostname"), "exports normalizeHostname");
 
     suite("settings.js uses shared allowlist helper");
     const settings = readText("settings/settings.js");

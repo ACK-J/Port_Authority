@@ -3,10 +3,8 @@ import { getPortForProtocol } from "./constants.js";
 import { normalizeHostname } from "./privateAddress.js";
 import {
     clearTabActivity,
-    getBadgeForTab,
     getTabActivitySnapshot,
     incrementBadgeCounter,
-    loadTabActivityMemory,
     recordBlockedPort,
     recordBlockedTrackingHost,
     resetTabActivityForNavigation,
@@ -17,10 +15,6 @@ const STORAGE_LOCK_KEY = "port_authority_storage_lock";
 
 /** Coalesce hot-path activity writes so blocked-request storms cannot queue lock work. */
 const TAB_ACTIVITY_PERSIST_MS = 75;
-
-/** Defensive caps so a pathological page cannot grow per-tab maps without bound. */
-const MAX_BLOCKED_HOSTS_PER_TAB = 200;
-const MAX_PORTS_PER_HOST = 100;
 
 /** @type {ReturnType<typeof setTimeout> | null} */
 let tabActivityPersistTimer = null;
@@ -286,15 +280,17 @@ export async function resetSessionTabActivity() {
 }
 
 /**
- * Test helper: load storage values into the in-memory activity maps.
+ * Flush activity and return the blocked ports/hosts for one tab (popup path).
+ * @param {number|string} tabId
+ * @returns {Promise<{ blocked_ports: object, blocked_hosts: string[] }>}
  */
-export async function hydrateTabActivityFromStorage() {
-    const [badges, blocked_ports, blocked_hosts] = await Promise.all([
-        getItemFromLocal("badges", {}),
-        getItemFromLocal("blocked_ports", {}),
-        getItemFromLocal("blocked_hosts", {}),
-    ]);
-    loadTabActivityMemory({ badges, blocked_ports, blocked_hosts });
+export async function getTabActivityForTab(tabId) {
+    await flushTabActivity();
+    const snapshot = getTabActivitySnapshot();
+    return {
+        blocked_ports: snapshot.blocked_ports[tabId] ?? {},
+        blocked_hosts: snapshot.blocked_hosts[tabId] ?? [],
+    };
 }
 
 /**
@@ -309,9 +305,11 @@ export function addBlockedPortToHost(url, tabIdString) {
     // Prefer hostname over host so ports are not mangled; normalize strips IPv6 brackets
     // (Node's URL keeps them; Firefox does not).
     const host = normalizeHostname(url.hostname);
-    const port = "" + (url.port || getPortForProtocol(url.protocol));
+    const mappedPort = getPortForProtocol(url.protocol);
+    const port = url.port || (mappedPort != null ? String(mappedPort) : "");
+    if (!port) return false;
 
-    const changed = recordBlockedPort(tabId, host, port, MAX_PORTS_PER_HOST);
+    const changed = recordBlockedPort(tabId, host, port);
     if (changed) scheduleTabActivityPersist();
     return changed;
 }
@@ -325,11 +323,7 @@ export function addBlockedTrackingHost(url, tabIdString) {
     const tabId = parseInt(tabIdString, 10);
     if (Number.isNaN(tabId) || tabId < 0) return false;
 
-    const changed = recordBlockedTrackingHost(
-        tabId,
-        normalizeHostname(url.hostname),
-        MAX_BLOCKED_HOSTS_PER_TAB
-    );
+    const changed = recordBlockedTrackingHost(tabId, normalizeHostname(url.hostname));
     if (changed) scheduleTabActivityPersist();
     return changed;
 }
@@ -381,12 +375,4 @@ export async function increaseBadge(request, isThreatMetrix) {
 export function resetTabDataForNavigation(tabId, lastURL) {
     resetTabActivityForNavigation(tabId, lastURL);
     scheduleTabActivityPersist();
-}
-
-/**
- * @param {number|string} tabId
- * @returns {import("./tabActivity.js").BadgeInfo | undefined}
- */
-export function peekBadgeForTab(tabId) {
-    return getBadgeForTab(tabId);
 }

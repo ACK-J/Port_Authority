@@ -40,12 +40,12 @@ export function updateBadges(text, tabId) {
 }
 
 /**
- * @returns {Promise<number>} Focused tab id
+ * @returns {Promise<number|undefined>} Focused tab id, or undefined when none
  */
 export async function getActiveTabId() {
     const tabs = await browser.tabs.query({
         currentWindow: true,
         active: true,
     });
-    return tabs[0].id;
+    return tabs[0]?.id;
 }

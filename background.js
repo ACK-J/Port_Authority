@@ -9,28 +9,24 @@ import {
     resetSessionTabActivity,
     clearTabActivityData,
     resetTabDataForNavigation,
-    peekBadgeForTab,
-    flushTabActivity,
+    getTabActivityForTab,
 } from "./global/BrowserStorageManager.js";
-import { getTabActivitySnapshot } from "./global/tabActivity.js";
+import { getBadgeForTab } from "./global/tabActivity.js";
 import { evaluateRequest, createDnsResultCache } from "./global/requestFilter.js";
 
 /** Session-scoped DNS result cache — not persisted to disk. */
 const dnsResultCache = createDnsResultCache();
 
 async function startup() {
-    // No need to check and initialize notification, state, and allow list values as they will
-    // fall back to the default values until explicitly set
+    // Defaults apply until settings are explicitly written.
     console.log("Startup called");
 
     // Drop stale/corrupt per-tab activity left from prior sessions (issue #52).
-    // Popup data is session-scoped in practice; tabs reload and repopulate anyway.
     await resetSessionTabActivity();
 
     // Warm the allowlist cache so the first requests avoid a storage round-trip.
     await getAllowedDomainListCached();
 
-    // Get the blocking state from cold storage
     const state = await getItemFromLocal("blocking_enabled", true);
     if (state === true) {
         await start();
@@ -76,10 +72,9 @@ async function cancel(requestDetails) {
     }
 
     return { cancel: false };
-} // end cancel()
+}
 
 async function start() {
-    // Enables blocking
     try {
         if (browser.webRequest.onBeforeRequest.hasListener(cancel)) {
             console.log("Blocking listener already attached");
@@ -89,8 +84,8 @@ async function start() {
 
         browser.webRequest.onBeforeRequest.addListener(
             cancel,
-            { urls: ["<all_urls>"] }, // Match all HTTP, HTTPS, FTP, FTPS, WS, WSS URLs.
-            ["blocking"] // if cancel() returns true block the request.
+            { urls: ["<all_urls>"] },
+            ["blocking"]
         );
 
         console.log("Attached `onBeforeRequest` listener successfully: blocking enabled");
@@ -101,7 +96,6 @@ async function start() {
 }
 
 async function stop() {
-    // Disables blocking
     try {
         if (browser.webRequest.onBeforeRequest.hasListener(cancel)) {
             browser.webRequest.onBeforeRequest.removeListener(cancel);
@@ -114,13 +108,13 @@ async function stop() {
 }
 
 /**
- * Called when each tab is updated, and if the URL has changed.
+ * Reset per-tab activity when the tab navigates to a new URL.
  * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
  */
 function handleUpdated(tabId, changeInfo, tabInfo) {
     if (!changeInfo.url) return;
 
-    const badge = peekBadgeForTab(tabId);
+    const badge = getBadgeForTab(tabId);
     if (!badge) return;
 
     if (badge.lastURL !== changeInfo.url) {
@@ -148,16 +142,8 @@ async function onMessage(message, sender) {
         case "toggleEnabled":
             message.value ? await start() : await stop();
             break;
-        case "getTabActivity": {
-            // Popup reads live memory (then storage is only a durability backup).
-            await flushTabActivity();
-            const snapshot = getTabActivitySnapshot();
-            const tabId = message.tabId;
-            return {
-                blocked_ports: snapshot.blocked_ports[tabId] ?? snapshot.blocked_ports[String(tabId)] ?? {},
-                blocked_hosts: snapshot.blocked_hosts[tabId] ?? snapshot.blocked_hosts[String(tabId)] ?? [],
-            };
-        }
+        case "getTabActivity":
+            return getTabActivityForTab(message.tabId);
         default:
             console.warn("Port Authority: unknown message: ", message);
             break;
