@@ -1,0 +1,13 @@
+{
+  "name": "port-authority",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Firefox addon that blocks browser-based port scans and LexisNexis ThreatMetrix endpoints",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
