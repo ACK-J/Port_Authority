@@ -71,6 +71,13 @@ function normalizeHostname(hostname) {
     return host.toLowerCase();
 }
 
+/** True when `hostname` is an IPv4/IPv6 literal (not a domain name). */
+export function isLiteralIpHostname(hostname) {
+    const host = normalizeHostname(hostname);
+    if (host.includes(":")) return true;
+    return /^\d+\.\d+\.\d+\.\d+$/.test(host);
+}
+
 /**
  * Returns true when `url` targets a local/private address over a supported protocol.
  * @param {URL} url Parsed request URL

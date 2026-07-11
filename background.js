@@ -1,6 +1,6 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
-import { isLocalRequestUrl, isPrivateAddress } from "./global/privateAddress.js";
+import { isLocalRequestUrl, isLiteralIpHostname, isPrivateAddress } from "./global/privateAddress.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -18,6 +18,12 @@ async function startup(){
 
 // Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
 const thm = new RegExp("online-metrix[.]net$", "i");
+
+function blockPortScan(requestDetails, url) {
+    increaseBadge(requestDetails, false);
+    addBlockedPortToHost(url, requestDetails.tabId);
+    return { cancel: true };
+}
 
 async function cancel(requestDetails) {
     // First check if it's a same-origin request
@@ -54,32 +60,32 @@ async function cancel(requestDetails) {
         return { cancel: false };
     }
 
-    // Local request check
+    // Local request check — literal private hostnames/IPs in the URL
     if (isLocalRequestUrl(url)) {
-        // The network request is going to a local address and has already failed a same-origin check, block it
         console.debug("Blocking domain for portscanning: ", url);
-        increaseBadge(requestDetails, false); // increment badge and alert
-        addBlockedPortToHost(url, requestDetails.tabId);
-        return { cancel: true };
+        return blockPortScan(requestDetails, url);
     }
 
-    // Resolve hostname once; check both private-IP and ThreatMetrix CNAME.
+    // Domain names may resolve to private addresses (DNS rebinding). Literal IP
+    // hostnames were already checked above; skip DNS for public IP literals.
+    if (isLiteralIpHostname(url.hostname)) {
+        return { cancel: false };
+    }
+
     let resolving;
     try {
-        resolving = await browser.dns.resolve(url.host, ["canonical_name"]);
+        resolving = await browser.dns.resolve(url.hostname, ["canonical_name"]);
     } catch (e) {
         // Fail open — DNS failure should not break valid but temporarily
         // unresolvable domains (captive portals, split-horizon DNS, etc.)
-        console.warn("DNS resolution failed for:", url.host, e);
+        console.warn("DNS resolution failed for:", url.hostname, e);
         return { cancel: false };
     }
 
     for (const address of resolving.addresses ?? []) {
         if (isPrivateAddress(address)) {
             console.debug("Blocking domain: DNS resolved to private address:", { url, address });
-            increaseBadge(requestDetails, false);
-            addBlockedPortToHost(url, requestDetails.tabId);
-            return { cancel: true };
+            return blockPortScan(requestDetails, url);
         }
     }
 
