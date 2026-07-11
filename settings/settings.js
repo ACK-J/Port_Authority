@@ -1,5 +1,6 @@
 import { getItemFromLocal, modifyItemInLocal } from "../global/BrowserStorageManager.js";
 import { createElement } from "../global/domUtils.js";
+import { normalizeAllowlistEntry } from "../global/hostUtils.js";
 
 /**
  * A single item in the allowlist display
@@ -75,37 +76,6 @@ async function load_allowlist(allowed_domain_list) {
     allowlist_wrapper.removeAttribute("hidden");
 }
 
-/**
- * Get a well-formed host to match against from an user-supplied URL
- * @param {string} url A URL-like value (eg `https://example.com/file/path/etc`, `discord.com/invite/abcdefg`, `example.com:8080`)
- * @returns {string} Well formatted host portion of url (eg `example.com`, `discord.com`, `example.com:8080`)
- * 
- * @throws Parsing an invalid URL
- */
-function extractURLHost(url) {
-    // Leading/trailing whitespace removal
-    url = url.trim();
-
-    // We don't actually care about the protocol as we only compare url.host
-    // But the URL object will fail to create if no protocol is provided
-    if (!url.match(/^\w*:\/\//)) {
-        const pathStart = url.indexOf("/");
-        const hostPort = pathStart === -1 ? url : url.slice(0, pathStart);
-        const path = pathStart === -1 ? "" : url.slice(pathStart);
-
-        if (hostPort.includes(":") && !hostPort.startsWith("[")) {
-            const isIPv4WithOptionalPort = /^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$/.test(hostPort);
-            url = isIPv4WithOptionalPort ?
-                `http://${hostPort}${path}` :
-                `http://[${hostPort}]${path}`;
-        } else {
-            url = `http://${url}`;
-        }
-    }
-    const newUrl = new URL(url);
-    return newUrl.host;
-}
-
 // Allowlist add form bindings
 const allowlist_add_form = document.getElementById("allowlist_add_form");
 function allowlist_add_listener(event) {
@@ -115,10 +85,10 @@ function allowlist_add_listener(event) {
     const form_url = allowlist_add_form.elements["add_domain"];
     let url = form_url.value;
     try {
-        url = extractURLHost(url);
+        url = normalizeAllowlistEntry(url);
     } catch(error) {
-        console.warn("Error parsing a domain to add to the allowlist:", {url, error});
-        alert("Please enter a valid domain or IP address.");
+        console.warn("Error parsing an allowlist entry:", {url, error});
+        alert("Please enter a valid domain, IP address, or CIDR range.");
         return;
     }
     
@@ -132,7 +102,7 @@ function allowlist_add_listener(event) {
             if (!list.includes(url)) {
                 return list.concat(url);
             } else {
-                alert("This domain is already in the list.");
+                alert("This entry is already in the list.");
                 return list;
             }
         }).then(
