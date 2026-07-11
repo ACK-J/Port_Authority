@@ -29,7 +29,18 @@ This addon blocks websites from using javascript to port scan your computer/inte
 - Alternate IPv4 encodings (integer, hex, octal, short-form) are normalized by the URL parser before range checks
 - DNS private-IP blocking is limited to rebinding-like hostnames (embedded IPs, nip.io/sslip.io/etc.) so content-blocker sinkholes to `0.0.0.0`/`127.0.0.1` are not reported as port scans
 - ThreatMetrix blocking still resolves every third-party hostname for the `online-metrix.net` CNAME check
-- Explanation of the regex used to match ThreatMetrix CNAMEs: https://regex101.com/r/f8LSTx/2
+- Explanation of the regex used to match ThreatMetrix CNAMEs: matches `online-metrix.net` and its subdomains only (`(?:^|\.)online-metrix[.]net$`)
+
+## Automated Tests
+
+Unit tests cover private-address classification, request-filter decisions (port scans, DNS rebinding, ThreatMetrix CNAMEs, allowlist), storage helpers, notifications/badges, allowlist parsing, DOM helpers, and manifest wiring.
+
+```bash
+npm test
+# or: node tests/run.js
+```
+
+Tests run on Node 18+ with no extra dependencies and are executed in CI on pushes/PRs to `main` and `dev`.
 
 ## Test All Forms of Port Scanning 
 - A webpage I made to test all forms of scanning in one location using the [./TestPortScans.html](https://github.com/ACK-J/Port_Authority/blob/main/TestPortScans.html) file

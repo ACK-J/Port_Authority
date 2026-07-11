@@ -1,5 +1,6 @@
 import { getItemFromLocal, modifyItemInLocal } from "../global/BrowserStorageManager.js";
 import { createElement } from "../global/domUtils.js";
+import { extractURLHost } from "../global/allowlist.js";
 
 /**
  * A single item in the allowlist display
@@ -73,26 +74,6 @@ async function load_allowlist(allowed_domain_list) {
 
     // Unhide the container wrapper at end
     allowlist_wrapper.removeAttribute("hidden");
-}
-
-/**
- * Get a well-formed host to match against from an user-supplied URL
- * @param {string} url A URL-like value (eg `https://example.com/file/path/etc`, `discord.com/invite/abcdefg`, `example.com:8080`)
- * @returns {string} Well formatted host portion of url (eg `example.com`, `discord.com`, `example.com:8080`)
- * 
- * @throws Parsing an invalid URL
- */
-function extractURLHost(url) {
-    // Leading/trailing whitespace removal
-    url = url.trim();
-
-    // We don't actually care about the protocol as we only compare url.host
-    // But the URL object will fail to create if no protocol is provided
-    if (!url.match(/^\w*:\/\//)) {
-        url = "http://" + url;
-    }
-    const newUrl = new URL(url);
-    return newUrl.host;
 }
 
 // Allowlist add form bindings

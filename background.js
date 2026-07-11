@@ -1,7 +1,6 @@
 import { getItemFromLocal, setItemInLocal, modifyItemInLocal,
     addBlockedPortToHost, addBlockedTrackingHost, increaseBadge } from "./global/BrowserStorageManager.js";
-import { isLocalRequestUrl, isLiteralIpHostname, isPrivateAddress,
-    hostnameSuggestsIpRebinding, isUnspecifiedAddress } from "./global/privateAddress.js";
+import { evaluateRequest } from "./global/requestFilter.js";
 
 async function startup(){
     // No need to check and initialize notification, state, and allow list values as they will 
@@ -17,9 +16,6 @@ async function startup(){
 	}
 }
 
-// Create a regex to find all sub-domains for online-metrix.net  Explained here https://regex101.com/r/f8LSTx/2
-const thm = new RegExp("online-metrix[.]net$", "i");
-
 function blockPortScan(requestDetails, url) {
     increaseBadge(requestDetails, false);
     addBlockedPortToHost(url, requestDetails.tabId);
@@ -27,84 +23,41 @@ function blockPortScan(requestDetails, url) {
 }
 
 async function cancel(requestDetails) {
-    // First check if it's a same-origin request
-    if(!requestDetails.thirdParty) {
-        console.debug("Same-origin/first-party request allowed:", {origin: requestDetails.originUrl, request: requestDetails.url});
-        return { cancel: false };
-    }
+    const decision = await evaluateRequest(requestDetails, {
+        getAllowedDomains: () => getItemFromLocal("allowed_domain_list", []),
+        resolveDns: (hostname) => browser.dns.resolve(hostname, ["canonical_name"]),
+    });
 
-
-    // Then check the allowlist
-    let check_allowed_url;
-    try {
-        check_allowed_url = new URL(requestDetails.originUrl);
-    } catch(error) {
-        console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl, error);
-        return { cancel: false }; // invalid origin
-    }
-    const allowed_domains_list = await getItemFromLocal("allowed_domain_list", []);
-    // Perform an exact match against the whitelisted domains (dont assume subdomains are allowed)
-    const domainIsWhiteListed = allowed_domains_list.some(
-        (domain) => check_allowed_url.host === domain
-    );
-    if (domainIsWhiteListed){
-        console.debug("Aborted filtering on domain due to whitelist: ", check_allowed_url);
-        return { cancel: false };
-    }
-
-    // Used in both local and threatmetrix checks
-    let url;
-    try {
-        url = new URL(requestDetails.url);
-    } catch(error) {
-        console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url, error);
-        return { cancel: false };
-    }
-
-    // Local request check — literal private hostnames/IPs in the URL
-    if (isLocalRequestUrl(url)) {
-        console.debug("Blocking domain for portscanning: ", url);
-        return blockPortScan(requestDetails, url);
-    }
-
-    // Domain names may resolve to private addresses (DNS rebinding). Literal IP
-    // hostnames were already checked above; skip DNS for public IP literals.
-    if (isLiteralIpHostname(url.hostname)) {
-        return { cancel: false };
-    }
-
-    let resolving;
-    try {
-        resolving = await browser.dns.resolve(url.hostname, ["canonical_name"]);
-    } catch (e) {
-        // Fail open — DNS failure should not break valid but temporarily
-        // unresolvable domains (captive portals, split-horizon DNS, etc.)
-        console.warn("DNS resolution failed for:", url.hostname, e);
-        return { cancel: false };
-    }
-
-    // Only apply private-IP DNS blocking when the hostname itself looks like a
-    // rebinding vector (embedded IP / nip.io / etc). Checking every third-party
-    // name causes mass false positives: ad blockers sinkhole domains to
-    // 0.0.0.0 or 127.0.0.1, which is not a port scan.
-    if (hostnameSuggestsIpRebinding(url.hostname)) {
-        for (const address of resolving.addresses ?? []) {
-            if (isUnspecifiedAddress(address)) continue;
-            if (isPrivateAddress(address)) {
-                console.debug("Blocking domain: DNS resolved to private address:", { url, address });
-                return blockPortScan(requestDetails, url);
-            }
+    if (!decision.cancel) {
+        if (decision.reason === "first-party") {
+            console.debug("Same-origin/first-party request allowed:", {
+                origin: requestDetails.originUrl,
+                request: requestDetails.url,
+            });
+        } else if (decision.reason === "unparseable-origin") {
+            console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
+        } else if (decision.reason === "allowlisted") {
+            console.debug("Aborted filtering on domain due to whitelist: ", requestDetails.originUrl);
+        } else if (decision.reason === "unparseable-url") {
+            console.error("Error filtering on domain due to unparseable request URL: ", requestDetails.url);
+        } else if (decision.reason === "dns-failure") {
+            console.warn("DNS resolution failed for request:", requestDetails.url);
         }
+        return { cancel: false };
     }
 
-    if (thm.test(resolving.canonicalName)) {
-        console.debug("Blocking domain for ThreatMetrix CNAME:", { url, cname: resolving.canonicalName });
+    if (decision.reason === "portscan") {
+        console.debug("Blocking domain for portscanning: ", decision.url);
+        return blockPortScan(requestDetails, decision.url);
+    }
+
+    if (decision.reason === "threatmetrix") {
+        console.debug("Blocking domain for ThreatMetrix CNAME:", { url: decision.url });
         increaseBadge(requestDetails, true);
-        addBlockedTrackingHost(url, requestDetails.tabId);
+        addBlockedTrackingHost(decision.url, requestDetails.tabId);
         return { cancel: true };
     }
-    
-    // Dont block sites that don't alert the detection
+
     return { cancel: false };
 } // end cancel()
 
