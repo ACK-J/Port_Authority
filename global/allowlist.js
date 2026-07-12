@@ -3,8 +3,8 @@
  *
  * Parsing is URL-first via the URL API. CIDR is a special case because the URL
  * standard treats `/24` as a pathname, not a prefix length — so after a successful
- * URL parse we optionally interpret the first path segment as a CIDR prefix when
- * the hostname is an IP literal.
+ * URL parse we optionally interpret an exact single numeric path segment as a
+ * CIDR prefix when the hostname is an IP literal.
  */
 import {
     isLiteralIpHostname,
@@ -150,36 +150,26 @@ export function normalizeAllowlistEntry(input) {
         throw new Error("empty allowlist entry");
     }
 
-    // CIDR first: URL parsing alone cannot represent prefix lengths.
-    const leadingCidr = extractLeadingCidr(input);
-    if (leadingCidr) {
-        return leadingCidr;
+    const parsed = parseAllowlistUrl(input);
+    const cidr = cidrFromParsedUrl(parsed);
+    if (cidr) {
+        return cidr;
     }
-
-    return extractURLHost(input);
+    return parsed.host;
 }
 
 /**
- * Interpret a paste as CIDR only when the URL path is exactly a prefix length
- * (`/24` or `/24/`). Extra path segments mean a normal page URL — store the
- * host, not a subnet (e.g. `http://192.168.1.50/24/items` → `192.168.1.50`).
- * @param {string} input
+ * If `parsed` is an IP URL whose path is exactly a prefix length (`/24`),
+ * return normalized `network/prefix`. Extra path segments are not CIDR.
+ * @param {URL} parsed
  * @returns {string|null}
  */
-function extractLeadingCidr(input) {
-    let parsed;
-    try {
-        parsed = parseAllowlistUrl(input);
-    } catch {
-        return null;
-    }
-
+function cidrFromParsedUrl(parsed) {
     const bareNetwork = normalizeHostname(parsed.hostname);
     if (!isLiteralIpHostname(bareNetwork)) {
         return null;
     }
 
-    // Exactly one path segment, all digits — otherwise this is not CIDR notation.
     const segments = parsed.pathname.split("/").filter((part) => part.length > 0);
     if (segments.length !== 1 || !isAllDigits(segments[0])) {
         return null;

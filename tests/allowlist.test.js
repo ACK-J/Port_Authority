@@ -27,6 +27,10 @@ export async function run() {
     assertEqual(extractURLHost("http://[::1]:8080/"), "[::1]:8080", "IPv6 with port");
     assertEqual(extractURLHost("::1"), "[::1]", "bare IPv6 gets brackets");
     assertEqual(extractURLHost("[::1]"), "[::1]", "already-bracketed IPv6");
+    assertEqual(extractURLHost("[::1]:8080"), "[::1]:8080", "bracketed IPv6 with port");
+    // Bare `::1:8080` is a valid IPv6 address (last hextet 8080), not loopback:port.
+    // Port-specific IPv6 allowlist entries must use [addr]:port form.
+    assertEqual(extractURLHost("::1:8080"), "[::1:8080]", "bare IPv6-looking:port is an address");
     assertEqual(extractURLHost("HTTPS://EXAMPLE.COM/Path"), "example.com", "hostname lowercased by URL");
 
     suite("extractURLHost rejects invalid input");
