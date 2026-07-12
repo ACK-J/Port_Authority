@@ -1,30 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8">
     <meta name="color-scheme" content="light dark">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>Port Authority</title>
+    <title>Port Authority Preferences</title>
 
     <link rel="stylesheet" type="text/css" href="../global/common.css">
     <link rel="stylesheet" type="text/css" href="./settings.css">
 </head>
 
-<body class="flex-column">
-    <form id="allowlist_add_form">
-        <p><strong class="warning-text">Make sure you enter a proper domain name (discord.com)</strong></p>
-        <label>Allow new domain:
-            <input type="text" name="add_domain" required placeholder="discord.com (example)">
-        </label>
-        <button type="submit">Add</button>
-    </form>
-    <section id="allowlist_section" hidden>
-        <strong>Domains Allowed to Bypass PortAuthority Blocking:</strong>
-        <ul id="allowlist_contents" class="selectable">
-            <!-- Dynamically Populated -->
-        </ul>
-    </section>
+<body>
+    <header>
+        <div class="brand">
+            <img src="../icons/logo-32.png" width="28" height="28" alt="">
+            <h1>Port Authority</h1>
+        </div>
+        <p class="header-label">Preferences</p>
+    </header>
+
+    <main>
+        <section class="panel" aria-labelledby="allowlist-heading">
+            <div class="panel-intro">
+                <h2 id="allowlist-heading">Domain Allowlist</h2>
+                <p class="panel-copy">
+                    Allowed domains can make local requests and load LexisNexis tracking scripts without being blocked.
+                </p>
+            </div>
+
+            <form id="allowlist_add_form" class="add-form">
+                <label class="field" for="add_domain">
+                    <span class="field-label">Allow a domain</span>
+                    <input
+                        type="text"
+                        id="add_domain"
+                        name="add_domain"
+                        required
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="discord.com"
+                        aria-describedby="domain-hint"
+                    >
+                </label>
+                <p id="domain-hint" class="field-hint">
+                    Enter a proper domain name, for example <code>discord.com</code>.
+                </p>
+                <button type="submit" class="primary-button">Add domain</button>
+            </form>
+        </section>
+
+        <section id="allowlist_section" class="panel" hidden>
+            <h2>Allowed Domains</h2>
+            <ul id="allowlist_contents" class="selectable domain-list">
+                <!-- Dynamically Populated -->
+            </ul>
+        </section>
+    </main>
+
     <script type="module" src="./settings.js"></script>
 </body>
 </html>

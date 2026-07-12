@@ -9,7 +9,7 @@ import { extractURLHost } from "../global/allowlist.js";
  * @returns {Element}
  * ```html
  * <li>
- *     {domain}
+ *     <span class="domain">{domain}</span>
  *     <button onclick="{remove & refresh display}"
  *             class="unselectable"
  *             aria-label="Remove {domain} from allowlist">
@@ -30,13 +30,13 @@ function allowlist_item(domain, abort_signal) {
             );
     }
 
-    // Main container, the domain is inserted as plain text with a space
-    const item = createElement("li", {}, [domain, " "]);
+    const item = createElement("li", {}, [
+        createElement("span", {class: "domain"}, domain),
+        createElement("button", {class: "unselectable", "aria-label": `Remove '${domain}' from allowlist`}, "✕"),
+    ]);
 
-    // Button to remove the domain from the allowlist
-    const remove_button = createElement("button", {class: "unselectable", "aria-label": `Remove '${domain}' from allowlist`}, "✕");
+    const remove_button = item.querySelector("button");
     remove_button.addEventListener("click", remove_domain_listener, {signal: abort_signal}); // By triggering `remove_buttons_event_controller.abort()`, all buttons with this signal passed will have their listeners removed
-    item.appendChild(remove_button);
 
     return item;
 }

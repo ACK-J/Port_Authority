@@ -1,21 +1,268 @@
+/* Preferences page — scoped to match the popup visual language */
 body {
-    gap: 1rem;
+    --radius: 10px;
+    --gap: 0.85rem;
+    --surface: color-mix(in oklab, var(--foreground) 5%, var(--background));
+    --surface-strong: color-mix(in oklab, var(--foreground) 9%, var(--background));
+    --border: color-mix(in oklab, var(--foreground) 14%, transparent);
+    --muted: color-mix(in oklab, var(--foreground) 62%, var(--background));
+    --brand-deep: color-mix(in oklab, var(--red) 88%, black);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.4;
 }
 
-input::placeholder {
+h1,
+h2 {
+    margin: 0;
+}
+
+/* Brand header */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background:
+        radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, white 18%, transparent), transparent 55%),
+        linear-gradient(135deg, var(--brand-deep), var(--red) 58%, color-mix(in oklab, var(--red) 70%, #3a0a0a));
+    color: #fff7f5;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+}
+
+.brand img {
+    flex-shrink: 0;
+    border-radius: 7px;
+}
+
+header h1 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+
+.header-label {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    padding: 0.95rem;
+}
+
+h2 {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    animation: rise-in 0.22s ease both;
+}
+
+.panel-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.panel-copy {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--muted);
+}
+
+.add-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.field-label {
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--background);
+    color: var(--foreground);
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input::placeholder {
     font-style: italic;
+    font-family: inherit;
+    color: color-mix(in oklab, var(--muted) 80%, var(--background));
 }
 
-/* "Remove domain" buttons */
-#allowlist_contents button {
-    background: color-mix(in oklab, var(--background) 80%, var(--foreground));
+.field input:hover {
+    border-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+
+.field input:focus-visible {
+    border-color: color-mix(in oklab, var(--red) 55%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--red) 22%, transparent);
+}
+
+.field-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.field-hint code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: var(--red-text);
+}
+
+.primary-button {
+    align-self: flex-start;
+    padding: 0.55rem 0.95rem;
     border: none;
-    border-radius: 1000em;
+    border-radius: 8px;
+    background: var(--red);
+    color: #fff7f5;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
     cursor: pointer;
-
-    padding-bottom: 2px;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
 }
-#allowlist_contents button:hover {
-    background-color: color-mix(in oklab, var(--red-text) 50%, red);
-    color: var(--background);
+
+.primary-button:hover {
+    background: color-mix(in oklab, var(--red) 82%, black);
+}
+
+.primary-button:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--red) 55%, white);
+    outline-offset: 2px;
+}
+
+.domain-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--background);
+    overflow: hidden;
+}
+
+.domain-list > li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    font-family: var(--mono);
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.35;
+    word-break: break-all;
+}
+
+.domain-list > li + li {
+    border-top: 1px solid var(--border);
+}
+
+.domain-list .domain {
+    min-width: 0;
+}
+
+.domain-list button {
+    flex-shrink: 0;
+    width: 1.7rem;
+    height: 1.7rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-strong);
+    color: var(--foreground);
+    font: inherit;
+    font-size: 0.78rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.domain-list button:hover,
+.domain-list button:focus-visible {
+    background: color-mix(in oklab, var(--red-text) 55%, red);
+    border-color: transparent;
+    color: #fff7f5;
+    outline: none;
+}
+
+.domain-list button:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--red) 22%, transparent);
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel {
+        animation: none;
+    }
+
+    .field input,
+    .primary-button,
+    .domain-list button {
+        transition: none;
+    }
 }
