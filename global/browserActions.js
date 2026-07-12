@@ -72,6 +72,7 @@ export async function getActiveTabId() {
  * @param {string} destination
  * @param {string} originalUrl
  * @param {number} [tabId]
+ * @param {string} [promptId]
  * @param {string} [page]
  * @returns {string|null}
  */
@@ -80,6 +81,7 @@ export function buildSelectiveAllowUrl(
     destination,
     originalUrl,
     tabId,
+    promptId,
     page = "selectiveAllow.html"
 ) {
     const safePage = sanitizeSelectiveAllowPage(page);
@@ -91,6 +93,9 @@ export function buildSelectiveAllowUrl(
     if (Number.isInteger(tabId) && tabId >= 0) {
         params.set("tabId", String(tabId));
     }
+    if (typeof promptId === "string" && promptId.length > 0) {
+        params.set("promptId", promptId);
+    }
 
     return browser.runtime.getURL(`selectiveAllow/${safePage}?${params}`);
 }
@@ -100,10 +105,11 @@ export function buildSelectiveAllowUrl(
  * Prefers a popup window; falls back to a normal tab if the window cannot open
  * (common when triggered from a blocking webRequest listener).
  *
- * @param {string} origin Host of the page that initiated the request
+ * @param {string} origin Host / allow-key of the page that initiated the request
  * @param {string} destination Host:port being navigated to
  * @param {string} originalUrl Full URL the user was trying to reach
  * @param {number} [tabId] Tab whose navigation was cancelled (for reuse on allow)
+ * @param {string} [promptId] Server-issued id binding the decision to this prompt
  * @param {string} [page="selectiveAllow.html"] Page under selectiveAllow/
  * @returns {Promise<{ mode: "window"|"tab", id?: number }|undefined>}
  */
@@ -112,9 +118,17 @@ export async function openSelectiveAllowPopup(
     destination,
     originalUrl,
     tabId,
+    promptId,
     page = "selectiveAllow.html"
 ) {
-    const url = buildSelectiveAllowUrl(origin, destination, originalUrl, tabId, page);
+    const url = buildSelectiveAllowUrl(
+        origin,
+        destination,
+        originalUrl,
+        tabId,
+        promptId,
+        page
+    );
     if (!url) {
         console.error("Refusing to open selective allow popup with unsafe page:", page);
         return;

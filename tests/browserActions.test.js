@@ -121,7 +121,8 @@ export async function run() {
             "github.com",
             "localhost:8080",
             "http://localhost:8080/app",
-            9
+            9,
+            "prompt-abc"
         );
         assertEqual(windowsCreated.length, 1, "popup window created");
         assertEqual(result?.mode, "window", "reports window mode");
@@ -133,6 +134,7 @@ export async function run() {
         assertEqual(url.searchParams.get("destination"), "localhost:8080", "destination query");
         assertEqual(url.searchParams.get("originalUrl"), "http://localhost:8080/app", "originalUrl query");
         assertEqual(url.searchParams.get("tabId"), "9", "tabId query");
+        assertEqual(url.searchParams.get("promptId"), "prompt-abc", "promptId query");
     }
     {
         windowsCreated.length = 0;
@@ -142,6 +144,7 @@ export async function run() {
             "localhost:8080",
             "http://localhost:8080/",
             1,
+            "prompt-x",
             "../evil.html"
         );
         assertEqual(windowsCreated.length, 0, "unsafe page does not open a window");
@@ -157,11 +160,13 @@ export async function run() {
             "github.com",
             "localhost:8080",
             "http://localhost:8080/",
-            3
+            3,
+            "prompt-y"
         );
         assertEqual(result?.mode, "tab", "falls back to tab mode");
         assertEqual(tabsCreated.length, 1, "fallback tab created");
         assert(tabsCreated[0].url.includes("selectiveAllow/selectiveAllow.html"), "fallback tab url");
         assertEqual(tabsCreated[0].active, true, "fallback tab active");
+        assert(tabsCreated[0].url.includes("promptId=prompt-y"), "fallback includes promptId");
     }
 }

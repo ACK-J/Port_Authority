@@ -23,13 +23,14 @@ import {
     CROSS_ORIGIN_ALLOWLIST_KEY,
     createSelectiveAllowState,
     listHasCrossOriginEntry,
-    validateAllowDecision,
+    originAllowKey,
+    validatePendingAllow,
 } from "./global/selectiveAllow.js";
 
 /** Session-scoped DNS result cache — not persisted to disk. */
 const dnsResultCache = createDnsResultCache();
 
-/** Session allow + pending-prompt dedupe for cross-origin local navigations. */
+/** Session allow + pending-prompt tracking for cross-origin local navigations. */
 const selectiveAllow = createSelectiveAllowState();
 
 async function startup() {
@@ -57,12 +58,49 @@ function blockPortScan(requestDetails, url) {
 }
 
 /**
+ * Open the decision UI outside the blocking webRequest stack and bind its
+ * window/tab id so chrome-close clears pending. Notification failures must
+ * not clear pending after a successful open.
+ */
+function scheduleSelectiveAllowPrompt(pending) {
+    setTimeout(() => {
+        (async () => {
+            let opened;
+            try {
+                opened = await openSelectiveAllowPopup(
+                    pending.origin,
+                    pending.destination,
+                    pending.originalUrl,
+                    pending.navigationTabId,
+                    pending.promptId
+                );
+            } catch (error) {
+                console.error("Failed to open selective allow prompt:", error);
+                selectiveAllow.clearPendingByPromptId(pending.promptId);
+                return;
+            }
+
+            if (!opened) {
+                selectiveAllow.clearPendingByPromptId(pending.promptId);
+                return;
+            }
+
+            selectiveAllow.bindPromptUi(pending.promptId, opened);
+
+            try {
+                await notifySelectiveAllow(pending.origin, pending.destination);
+            } catch (error) {
+                // Prompt UI is already open — do not clear pending on notify failure.
+                console.warn("Selective allow notification failed:", error);
+            }
+        })();
+    }, 0);
+}
+
+/**
  * Top-level navigations to literal local addresses get a Selective Allow prompt
  * instead of a silent block. Subresource port scans still use blockPortScan().
  * Prompting is skipped while a popup for the same origin→destination is open.
- *
- * The decision UI is opened on a deferred turn: calling windows/tabs APIs
- * directly inside a blocking webRequest listener is unreliable in Firefox.
  */
 async function handleSelectiveAllowNavigation(requestDetails, url) {
     let originUrl;
@@ -73,49 +111,31 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
         return blockPortScan(requestDetails, url);
     }
 
-    // file:// and similar have an empty host; keep a stable key/label.
-    const originHost = originUrl.host || originUrl.protocol.replace(":", "") || "unknown";
+    const origin = originAllowKey(originUrl);
     const destination = url.host;
     if (!destination) {
         return blockPortScan(requestDetails, url);
     }
 
-    if (selectiveAllow.isSessionAllowed(originHost, destination)) {
+    if (selectiveAllow.isSessionAllowed(origin, destination)) {
         return { cancel: false };
     }
 
     const crossOriginList = await getItemFromLocal(CROSS_ORIGIN_ALLOWLIST_KEY, []);
-    if (listHasCrossOriginEntry(crossOriginList, originHost, destination)) {
+    if (listHasCrossOriginEntry(crossOriginList, origin, destination)) {
         return { cancel: false };
     }
 
     // Dedupe: do not open another popup for the same pair while one is pending.
     // Still cancel the navigation so the local target is not reached.
-    if (!selectiveAllow.hasPendingPrompt(originHost, destination)) {
-        selectiveAllow.markPendingPrompt(originHost, destination);
-        const promptOrigin = originHost;
-        const promptDestination = destination;
-        const promptUrl = requestDetails.url;
-        const promptTabId = requestDetails.tabId;
-
-        // Escape the blocking webRequest stack before opening UI.
-        setTimeout(() => {
-            Promise.resolve()
-                .then(async () => {
-                    await openSelectiveAllowPopup(
-                        promptOrigin,
-                        promptDestination,
-                        promptUrl,
-                        promptTabId
-                    );
-                    // Best-effort heads-up if the window opens behind other UI.
-                    await notifySelectiveAllow(promptOrigin, promptDestination);
-                })
-                .catch((error) => {
-                    console.error("Failed to open selective allow prompt:", error);
-                    selectiveAllow.clearPendingPrompt(promptOrigin, promptDestination);
-                });
-        }, 0);
+    if (!selectiveAllow.hasPendingPrompt(origin, destination)) {
+        const pending = selectiveAllow.createPendingPrompt({
+            origin,
+            destination,
+            originalUrl: requestDetails.url,
+            navigationTabId: requestDetails.tabId,
+        });
+        scheduleSelectiveAllowPrompt(pending);
     }
 
     // Cancel without badge noise — the user gets an explicit prompt instead.
@@ -215,9 +235,15 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
 /**
  * Closed tabs must drop their activity maps — otherwise badges/blocked_* grow
  * without bound across a long browsing session (issue #52 / #47).
+ * Also clear Selective Allow pending when the decision UI tab is closed.
  */
 function handleRemoved(tabId) {
+    selectiveAllow.clearPendingByUiTabId(tabId);
     clearTabActivityData(tabId);
+}
+
+function handleWindowRemoved(windowId) {
+    selectiveAllow.clearPendingByWindowId(windowId);
 }
 
 /**
@@ -255,22 +281,30 @@ async function onMessage(message, sender) {
         case "getTabActivity":
             return getTabActivityForTab(message.tabId);
         case "selectiveAllowDismiss": {
-            if (typeof message.origin === "string" && typeof message.destination === "string") {
-                selectiveAllow.clearPendingPrompt(message.origin, message.destination);
+            if (typeof message.promptId === "string") {
+                selectiveAllow.clearPendingByPromptId(message.promptId);
             }
             break;
         }
         case "allowOnce":
         case "alwaysAllow": {
-            const validated = validateAllowDecision(message);
+            const pending = selectiveAllow.getPendingByPromptId(message.promptId);
+            if (!pending) {
+                console.warn("Rejected selective allow decision: unknown or expired prompt", message);
+                return;
+            }
+
+            const validated = validatePendingAllow(pending, message.tabId);
             if (!validated.ok) {
                 console.warn("Rejected selective allow decision:", validated.reason, message);
+                // Invalid pending should not keep the pair locked from re-prompting.
+                selectiveAllow.clearPendingByPromptId(pending.promptId);
                 return;
             }
 
             const { origin, destination, originalUrl, tabId } = validated;
             selectiveAllow.allowInSession(origin, destination);
-            selectiveAllow.clearPendingPrompt(origin, destination);
+            selectiveAllow.clearPendingByPromptId(pending.promptId);
 
             if (message.type === "alwaysAllow") {
                 await modifyItemInLocal(CROSS_ORIGIN_ALLOWLIST_KEY, [], (list) => {
@@ -299,3 +333,4 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 startup();
 browser.tabs.onUpdated.addListener(handleUpdated);
 browser.tabs.onRemoved.addListener(handleRemoved);
+browser.windows.onRemoved.addListener(handleWindowRemoved);

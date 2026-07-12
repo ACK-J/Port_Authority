@@ -51,9 +51,12 @@ export async function run() {
     assert(background.includes("resetSessionTabActivity"), "resets stale session activity on startup");
     assert(background.includes("getAllowedDomainListCached"), "uses cached allowlist on hot path");
     assert(background.includes("handleSelectiveAllowNavigation"), "selective allow for main_frame locals");
-    assert(background.includes("validateAllowDecision"), "validates allow Once/Always messages");
+    assert(background.includes("validatePendingAllow"), "validates allow Once/Always against pending");
     assert(background.includes("allowOnce"), "handles allowOnce messages");
     assert(background.includes("alwaysAllow"), "handles alwaysAllow messages");
+    assert(background.includes("clearPendingByWindowId"), "clears pending when prompt window closes");
+    assert(background.includes("windows.onRemoved"), "listens for prompt window close");
+    assert(background.includes("originAllowKey"), "uses stable origin keys including file paths");
 
     suite("requestFilter.js ThreatMetrix remediation surface");
     const requestFilter = readText("global/requestFilter.js");

@@ -66,7 +66,7 @@ Manual check: serve or host [`TestPortScans.html`](./TestPortScans.html) from a 
 - Hostname compares strip trailing dots so FQDN forms like `h.online-metrix.net.` still match
 - Transient DNS failures fail open (request allowed) after an explicit catch; known ThreatMetrix suffixes do not depend on DNS and are still blocked
 - Allowlist matching lives in `global/allowlist.js`: domains use exact `URL.host` equality; portless IP entries and CIDR ranges use shared IP helpers from `global/privateAddress.js`
-- Selective Allow (issue #57) lives in `global/selectiveAllow.js`: only `main_frame` requests to literal local URLs are prompted; allow decisions validate that `originalUrl` is local and that its host matches the displayed destination before navigating or persisting
+- Selective Allow (issue #57) lives in `global/selectiveAllow.js`: only `main_frame` requests to literal local URLs are prompted; allow decisions are bound to a server-issued `promptId` and validated against the stored pending record (so the popup cannot invent a different origin). `file://` initiators are keyed by file path, not a shared `file` token. Pending prompts clear when the decision window/tab is closed.
 ## Automated Tests
 
 Unit tests cover private-address classification, request-filter decisions (port scans, DNS rebinding, ThreatMetrix CNAMEs, allowlist including IP/CIDR), Selective Allow validation, storage helpers, notifications/badges, allowlist parsing, DOM helpers, and manifest wiring.
