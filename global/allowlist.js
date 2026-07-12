@@ -1,5 +1,10 @@
 /**
  * Helpers for the domain/IP/CIDR allowlist used by settings UI and request filtering.
+ *
+ * Parsing is URL-first via the URL API. CIDR is a special case because the URL
+ * standard treats `/24` as a pathname, not a prefix length — so after a successful
+ * URL parse we optionally interpret the first path segment as a CIDR prefix when
+ * the hostname is an IP literal.
  */
 import {
     isLiteralIpHostname,
@@ -9,6 +14,70 @@ import {
     unwrapIpv4MappedAddress,
 } from "./privateAddress.js";
 
+function isAllDigits(value) {
+    if (!value) return false;
+    for (let i = 0; i < value.length; i++) {
+        const code = value.charCodeAt(i);
+        if (code < 48 || code > 57) return false;
+    }
+    return true;
+}
+
+function countChar(value, ch) {
+    let n = 0;
+    for (let i = 0; i < value.length; i++) {
+        if (value[i] === ch) n++;
+    }
+    return n;
+}
+
+/**
+ * Parse a user paste into a URL. Bare hosts/CIDRs get an `http://` scheme;
+ * bare IPv6 literals are bracketed so URL() accepts them.
+ * @param {string} input
+ * @returns {URL}
+ */
+function parseAllowlistUrl(input) {
+    input = input.trim();
+    const looksAbsolute = input.indexOf("://") > 0;
+
+    try {
+        const direct = new URL(input);
+        // Only trust absolute URLs that actually have a host. Some engines (notably
+        // Node) accept bare strings like `example.com:8080` or `fe80::/10` as
+        // opaque URLs with an empty host — those must use the bare-host path.
+        if (direct.host) {
+            return direct;
+        }
+        if (looksAbsolute) {
+            throw new TypeError("Invalid URL");
+        }
+    } catch (error) {
+        // Scheme-bearing input that failed to parse must not be reinterpreted as
+        // a bare host (e.g. `http://` → `http://http//`).
+        if (looksAbsolute) {
+            throw error instanceof TypeError ? error : new TypeError("Invalid URL");
+        }
+        // Otherwise fall through and treat as a bare host / CIDR / IPv6 literal.
+    }
+
+    const pathStart = input.indexOf("/");
+    const hostPort = pathStart === -1 ? input : input.slice(0, pathStart);
+    const path = pathStart === -1 ? "" : input.slice(pathStart);
+
+    if (hostPort.startsWith("[")) {
+        return new URL(`http://${hostPort}${path}`);
+    }
+
+    // Bare IPv6 has ≥2 colons. IPv4/hostname:port has at most one.
+    // (URL() rejects `http://::1` without brackets.)
+    if (countChar(hostPort, ":") >= 2) {
+        return new URL(`http://[${hostPort}]${path}`);
+    }
+
+    return new URL(`http://${hostPort}${path}`);
+}
+
 /**
  * Get a well-formed host to match against from a user-supplied URL-like string.
  * @param {string} url A URL-like value (eg `https://example.com/path`, `discord.com`, `example.com:8080`)
@@ -16,24 +85,7 @@ import {
  * @throws {TypeError} When the input cannot be parsed as a URL
  */
 export function extractURLHost(url) {
-    url = url.trim();
-
-    // URL() requires a protocol; callers often paste bare domains / IPs.
-    if (!/^\w*:\/\//.test(url)) {
-        const pathStart = url.indexOf("/");
-        const hostPort = pathStart === -1 ? url : url.slice(0, pathStart);
-        const path = pathStart === -1 ? "" : url.slice(pathStart);
-
-        // Bare IPv6 needs brackets. Domain:port and IPv4:port must not be bracketed.
-        // IPv6 always has at least two colons (`::1`, `2001:db8::1`); hostname:port has one.
-        const isIPv4WithOptionalPort = /^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$/.test(hostPort);
-        const colonCount = (hostPort.match(/:/g) || []).length;
-        const isBareIPv6 = !hostPort.startsWith("[") && !isIPv4WithOptionalPort && colonCount >= 2;
-
-        url = isBareIPv6 ? `http://[${hostPort}]${path}` : `http://${hostPort}${path}`;
-    }
-
-    return new URL(url).host;
+    return parseAllowlistUrl(url).host;
 }
 
 /**
@@ -98,8 +150,7 @@ export function normalizeAllowlistEntry(input) {
         throw new Error("empty allowlist entry");
     }
 
-    // Prefer a leading IP/prefix even when the paste includes a scheme or
-    // trailing path (e.g. `http://192.168.1.0/24/dashboard`).
+    // CIDR first: URL parsing alone cannot represent prefix lengths.
     const leadingCidr = extractLeadingCidr(input);
     if (leadingCidr) {
         return leadingCidr;
@@ -109,36 +160,39 @@ export function normalizeAllowlistEntry(input) {
 }
 
 /**
- * If `input` begins with a valid CIDR (optionally after a URL scheme, and
- * optionally followed by more path), return the normalized `network/prefix`.
- * Throws when the leading network is an IP but the prefix is invalid.
+ * Interpret a paste as CIDR when URL parsing yields an IP hostname whose first
+ * path segment is a prefix length (e.g. `http://192.168.1.0/24/dashboard` →
+ * pathname `/24/dashboard`).
  * @param {string} input
  * @returns {string|null}
  */
 function extractLeadingCidr(input) {
-    const withoutScheme = input.replace(/^\w+:\/\//, "").replace(/\/+$/, "");
-    const slashIndex = withoutScheme.indexOf("/");
-    if (slashIndex <= 0) return null;
+    let parsed;
+    try {
+        parsed = parseAllowlistUrl(input);
+    } catch {
+        return null;
+    }
 
-    const network = withoutScheme.slice(0, slashIndex);
-    const rest = withoutScheme.slice(slashIndex + 1);
-    const prefixMatch = rest.match(/^(\d+)/);
-    if (!prefixMatch) return null;
+    const bareNetwork = normalizeHostname(parsed.hostname);
+    if (!isLiteralIpHostname(bareNetwork)) {
+        return null;
+    }
 
-    const bareNetwork = normalizeHostname(network);
-    const isIpNetwork =
-        parseIPv4Octets(bareNetwork) !== null ||
-        (bareNetwork.includes(":") && expandIPv6(bareNetwork) !== null);
-    if (!isIpNetwork) return null;
+    // pathname: "/24", "/24/dashboard", "/8080/status", or "/"
+    const firstSegment = parsed.pathname.split("/").find((part) => part.length > 0);
+    if (!firstSegment || !isAllDigits(firstSegment)) {
+        return null;
+    }
 
-    const candidate = `${bareNetwork}/${prefixMatch[1]}`;
+    const candidate = `${bareNetwork}/${firstSegment}`;
     if (isCIDRAllowlistEntry(candidate)) {
         return candidate;
     }
 
     // Near-miss prefixes are CIDR typos (`/33`, `/129`). Much larger numbers are
-    // treated as normal URL paths (e.g. http://127.0.0.1/8080/status).
-    const prefixNum = Number(prefixMatch[1]);
+    // normal URL paths (e.g. http://127.0.0.1/8080/status).
+    const prefixNum = Number(firstSegment);
     const isV4 = parseIPv4Octets(bareNetwork) !== null;
     const maxPrefix = isV4 ? 32 : 128;
     if (prefixNum <= maxPrefix * 2) {
