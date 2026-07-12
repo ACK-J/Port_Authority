@@ -6,7 +6,6 @@ body {
     --surface-strong: color-mix(in oklab, var(--foreground) 9%, var(--background));
     --border: color-mix(in oklab, var(--foreground) 14%, transparent);
     --muted: color-mix(in oklab, var(--foreground) 62%, var(--background));
-    --brand-deep: color-mix(in oklab, var(--red) 88%, black);
     --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
 
     display: flex;
@@ -20,47 +19,6 @@ body {
 h1,
 h2 {
     margin: 0;
-}
-
-/* Brand header */
-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
-    background:
-        radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, white 18%, transparent), transparent 55%),
-        linear-gradient(135deg, var(--brand-deep), var(--red) 58%, color-mix(in oklab, var(--red) 70%, #3a0a0a));
-    color: #fff7f5;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    min-width: 0;
-}
-
-.brand img {
-    flex-shrink: 0;
-    border-radius: 7px;
-}
-
-header h1 {
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-}
-
-.header-label {
-    margin: 0;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    opacity: 0.85;
 }
 
 main {
