@@ -42,6 +42,8 @@ Saved "Always Allow" entries can be reviewed and removed from the extension sett
 
 > **Note:** This prompt only appears for full page navigations (`main_frame`) to literal local/private addresses. Background requests — `fetch`, XHR, iframes — and DNS-rebinding style probes are still silently blocked and logged in the extension popup. Permissions are keyed by `URL.host` (host + port), not by path or scheme.
 
+Manual check: serve or host [`TestPortScans.html`](./TestPortScans.html) from a non-local origin and use the **Selective Allow** links on that page.
+
 ## Allowlist
 - **Domains** (e.g. `discord.com`) match the page origin only — including an optional non-default port when present
 - **IP addresses** (e.g. `127.0.0.1`) without a port match that address on any port for both the page origin and local request destinations

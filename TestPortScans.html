@@ -140,6 +140,26 @@
             <a id="plugin-button" href="https://addons.mozilla.org/firefox/addon/port-authority/">
                 <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Port Authority addon for Firefox" height="60px">
             </a>
+
+            <h2>Selective Allow (cross-origin local navigation)</h2>
+            <p>
+                Port Authority blocks top-level navigations from internet pages to local addresses by default,
+                then asks whether to allow the request. To exercise that prompt, open this page from a
+                <strong>non-local origin</strong> (for example serve it over LAN or host it on the public web),
+                then click:
+            </p>
+            <p>
+                <a href="http://localhost:8080/" target="_blank" rel="noopener">Open http://localhost:8080/</a>
+            </p>
+            <p>
+                A same-tab variant (no <code>target="_blank"</code>):
+                <a href="http://127.0.0.1:8080/">Open http://127.0.0.1:8080/</a>
+            </p>
+            <p>
+                Subresource scans from the button above should still be silently blocked; only these full-page
+                navigations should show the Selective Allow popup.
+            </p>
+
             <h2 id="results-label" hidden>
                 Requests Made:
             </h2>
