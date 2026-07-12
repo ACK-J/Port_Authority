@@ -1,5 +1,3 @@
-import { sanitizeSelectiveAllowPage } from "./selectiveAllow.js";
-
 async function notify(id, title, message) {
     return browser.notifications.create(id, {
         type: "basic",
@@ -67,28 +65,21 @@ export async function getActiveTabId() {
 }
 
 /**
- * Build the Selective Allow decision page URL (query params included).
+ * Build the Selective Allow decision page URL.
  * @param {string} origin
  * @param {string} destination
  * @param {string} originalUrl
  * @param {number} [tabId]
  * @param {string} [promptId]
- * @param {string} [page]
- * @returns {string|null}
+ * @returns {string}
  */
 export function buildSelectiveAllowUrl(
     origin,
     destination,
     originalUrl,
     tabId,
-    promptId,
-    page = "selectiveAllow.html"
+    promptId
 ) {
-    const safePage = sanitizeSelectiveAllowPage(page);
-    if (!safePage) {
-        return null;
-    }
-
     const params = new URLSearchParams({ origin, destination, originalUrl });
     if (Number.isInteger(tabId) && tabId >= 0) {
         params.set("tabId", String(tabId));
@@ -96,43 +87,34 @@ export function buildSelectiveAllowUrl(
     if (typeof promptId === "string" && promptId.length > 0) {
         params.set("promptId", promptId);
     }
-
-    return browser.runtime.getURL(`selectiveAllow/${safePage}?${params}`);
+    return browser.runtime.getURL(`selectiveAllow/selectiveAllow.html?${params}`);
 }
 
 /**
  * Opens a Selective Allow decision UI.
- * Prefers a popup window; falls back to a normal tab if the window cannot open
- * (common when triggered from a blocking webRequest listener).
+ * Prefers a popup window; falls back to a tab if the window cannot open.
  *
- * @param {string} origin Host / allow-key of the page that initiated the request
- * @param {string} destination Host:port being navigated to
- * @param {string} originalUrl Full URL the user was trying to reach
- * @param {number} [tabId] Tab whose navigation was cancelled (for reuse on allow)
- * @param {string} [promptId] Server-issued id binding the decision to this prompt
- * @param {string} [page="selectiveAllow.html"] Page under selectiveAllow/
- * @returns {Promise<{ mode: "window"|"tab", id?: number }|undefined>}
+ * @param {string} origin
+ * @param {string} destination
+ * @param {string} originalUrl
+ * @param {number} [tabId]
+ * @param {string} [promptId]
+ * @returns {Promise<{ mode: "window"|"tab", id: number }|undefined>}
  */
 export async function openSelectiveAllowPopup(
     origin,
     destination,
     originalUrl,
     tabId,
-    promptId,
-    page = "selectiveAllow.html"
+    promptId
 ) {
     const url = buildSelectiveAllowUrl(
         origin,
         destination,
         originalUrl,
         tabId,
-        promptId,
-        page
+        promptId
     );
-    if (!url) {
-        console.error("Refusing to open selective allow popup with unsafe page:", page);
-        return;
-    }
 
     try {
         const win = await browser.windows.create({
@@ -143,10 +125,21 @@ export async function openSelectiveAllowPopup(
             allowScriptsToClose: true,
             focused: true,
         });
-        return { mode: "window", id: win?.id };
+        if (Number.isInteger(win?.id) && win.id >= 0) {
+            return { mode: "window", id: win.id };
+        }
     } catch (windowError) {
         console.warn("Selective allow popup window failed; opening a tab instead:", windowError);
-        const tab = await browser.tabs.create({ url, active: true });
-        return { mode: "tab", id: tab?.id };
     }
+
+    try {
+        const tab = await browser.tabs.create({ url, active: true });
+        if (Number.isInteger(tab?.id) && tab.id >= 0) {
+            return { mode: "tab", id: tab.id };
+        }
+    } catch (tabError) {
+        console.error("Selective allow fallback tab failed:", tabError);
+    }
+
+    return undefined;
 }

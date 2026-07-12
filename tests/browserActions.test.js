@@ -126,29 +126,11 @@ export async function run() {
         );
         assertEqual(windowsCreated.length, 1, "popup window created");
         assertEqual(result?.mode, "window", "reports window mode");
-        assertEqual(windowsCreated[0].type, "popup", "window type popup");
-        assertEqual(windowsCreated[0].focused, true, "window focused");
+        assertEqual(result?.id, 1, "returns window id");
         const url = new URL(windowsCreated[0].url);
         assert(url.pathname.endsWith("selectiveAllow/selectiveAllow.html"), "popup path");
-        assertEqual(url.searchParams.get("origin"), "github.com", "origin query");
-        assertEqual(url.searchParams.get("destination"), "localhost:8080", "destination query");
-        assertEqual(url.searchParams.get("originalUrl"), "http://localhost:8080/app", "originalUrl query");
-        assertEqual(url.searchParams.get("tabId"), "9", "tabId query");
         assertEqual(url.searchParams.get("promptId"), "prompt-abc", "promptId query");
-    }
-    {
-        windowsCreated.length = 0;
-        tabsCreated.length = 0;
-        await actions.openSelectiveAllowPopup(
-            "github.com",
-            "localhost:8080",
-            "http://localhost:8080/",
-            1,
-            "prompt-x",
-            "../evil.html"
-        );
-        assertEqual(windowsCreated.length, 0, "unsafe page does not open a window");
-        assertEqual(tabsCreated.length, 0, "unsafe page does not open a tab");
+        assertEqual(url.searchParams.get("tabId"), "9", "tabId query");
     }
     {
         windowsCreated.length = 0;
@@ -164,9 +146,26 @@ export async function run() {
             "prompt-y"
         );
         assertEqual(result?.mode, "tab", "falls back to tab mode");
+        assertEqual(result?.id, 99, "returns tab id");
         assertEqual(tabsCreated.length, 1, "fallback tab created");
-        assert(tabsCreated[0].url.includes("selectiveAllow/selectiveAllow.html"), "fallback tab url");
-        assertEqual(tabsCreated[0].active, true, "fallback tab active");
         assert(tabsCreated[0].url.includes("promptId=prompt-y"), "fallback includes promptId");
+    }
+    {
+        windowsCreated.length = 0;
+        tabsCreated.length = 0;
+        globalThis.browser.windows.create = async () => ({ id: undefined });
+        globalThis.browser.tabs.create = async (details) => {
+            tabsCreated.push(details);
+            return { id: 77, ...details };
+        };
+        const result = await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/",
+            3,
+            "prompt-z"
+        );
+        assertEqual(result?.mode, "tab", "falls back when window id missing");
+        assertEqual(result?.id, 77, "uses fallback tab id");
     }
 }

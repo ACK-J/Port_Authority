@@ -30,7 +30,7 @@ import {
 /** Session-scoped DNS result cache — not persisted to disk. */
 const dnsResultCache = createDnsResultCache();
 
-/** Session allow + pending-prompt tracking for cross-origin local navigations. */
+/** Session allow (Allow Once) + pending-prompt tracking. */
 const selectiveAllow = createSelectiveAllowState();
 
 async function startup() {
@@ -57,10 +57,14 @@ function blockPortScan(requestDetails, url) {
     return { cancel: true };
 }
 
+/** @param {number|undefined} tabId */
+function normalizedNavigationTabId(tabId) {
+    return Number.isInteger(tabId) && tabId >= 0 ? tabId : undefined;
+}
+
 /**
- * Open the decision UI outside the blocking webRequest stack and bind its
- * window/tab id so chrome-close clears pending. Notification failures must
- * not clear pending after a successful open.
+ * Open the decision UI outside the blocking webRequest stack.
+ * Pending is cleared unless a UI id is successfully bound for close tracking.
  */
 function scheduleSelectiveAllowPrompt(pending) {
     setTimeout(() => {
@@ -80,17 +84,15 @@ function scheduleSelectiveAllowPrompt(pending) {
                 return;
             }
 
-            if (!opened) {
+            if (!opened || !selectiveAllow.bindPromptUi(pending.promptId, opened)) {
+                console.error("Selective allow UI opened without a trackable id");
                 selectiveAllow.clearPendingByPromptId(pending.promptId);
                 return;
             }
 
-            selectiveAllow.bindPromptUi(pending.promptId, opened);
-
             try {
                 await notifySelectiveAllow(pending.origin, pending.destination);
             } catch (error) {
-                // Prompt UI is already open — do not clear pending on notify failure.
                 console.warn("Selective allow notification failed:", error);
             }
         })();
@@ -100,14 +102,12 @@ function scheduleSelectiveAllowPrompt(pending) {
 /**
  * Top-level navigations to literal local addresses get a Selective Allow prompt
  * instead of a silent block. Subresource port scans still use blockPortScan().
- * Prompting is skipped while a popup for the same origin→destination is open.
  */
 async function handleSelectiveAllowNavigation(requestDetails, url) {
     let originUrl;
     try {
         originUrl = new URL(requestDetails.originUrl);
     } catch {
-        // Without a parseable origin we cannot key a permission — fall back.
         return blockPortScan(requestDetails, url);
     }
 
@@ -117,6 +117,7 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
         return blockPortScan(requestDetails, url);
     }
 
+    // Allow Once (session) — Always Allow is storage-only and checked below.
     if (selectiveAllow.isSessionAllowed(origin, destination)) {
         return { cancel: false };
     }
@@ -126,19 +127,23 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
         return { cancel: false };
     }
 
-    // Dedupe: do not open another popup for the same pair while one is pending.
-    // Still cancel the navigation so the local target is not reached.
-    if (!selectiveAllow.hasPendingPrompt(origin, destination)) {
+    const navigation = {
+        originalUrl: requestDetails.url,
+        navigationTabId: normalizedNavigationTabId(requestDetails.tabId),
+    };
+
+    if (selectiveAllow.hasPendingPrompt(origin, destination)) {
+        // Keep the latest blocked navigation for when the user allows.
+        selectiveAllow.updatePendingNavigation(origin, destination, navigation);
+    } else {
         const pending = selectiveAllow.createPendingPrompt({
             origin,
             destination,
-            originalUrl: requestDetails.url,
-            navigationTabId: requestDetails.tabId,
+            ...navigation,
         });
         scheduleSelectiveAllowPrompt(pending);
     }
 
-    // Cancel without badge noise — the user gets an explicit prompt instead.
     return { cancel: true };
 }
 
@@ -150,8 +155,6 @@ async function cancel(requestDetails) {
     });
 
     if (!decision.cancel) {
-        // Avoid per-request console I/O on the hot allow path — logging every
-        // first-party asset on SPAs (Figma, etc.) retains huge console buffers.
         if (decision.reason === "unparseable-origin") {
             console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
         } else if (decision.reason === "unparseable-url") {
@@ -163,8 +166,6 @@ async function cancel(requestDetails) {
     }
 
     if (decision.reason === "portscan") {
-        // Only literal local main_frame navigations are prompted. DNS-rebinding
-        // portscans (and all subresources) stay on the silent block path.
         if (
             requestDetails.type === "main_frame" &&
             decision.url &&
@@ -217,10 +218,6 @@ async function stop() {
     }
 }
 
-/**
- * Reset per-tab activity when the tab navigates to a new URL.
- * Borrowed and modified from https://gitlab.com/KevinRoebert/ClearUrls/-/blob/master/core_js/badgedHandler.js
- */
 function handleUpdated(tabId, changeInfo, tabInfo) {
     if (!changeInfo.url) return;
 
@@ -232,11 +229,6 @@ function handleUpdated(tabId, changeInfo, tabInfo) {
     }
 }
 
-/**
- * Closed tabs must drop their activity maps — otherwise badges/blocked_* grow
- * without bound across a long browsing session (issue #52 / #47).
- * Also clear Selective Allow pending when the decision UI tab is closed.
- */
 function handleRemoved(tabId) {
     selectiveAllow.clearPendingByUiTabId(tabId);
     clearTabActivityData(tabId);
@@ -247,7 +239,6 @@ function handleWindowRemoved(windowId) {
 }
 
 /**
- * Navigate the cancelled tab when possible; otherwise open a new tab.
  * @param {number|undefined} tabId
  * @param {string} url
  */
@@ -266,9 +257,39 @@ async function navigateAllowedUrl(tabId, url) {
     await browser.tabs.create({ url });
 }
 
+/** Parse JSON-stringified storage.onChanged values. */
+function parseStorageChangeValue(raw) {
+    if (raw === undefined) return undefined;
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Settings removals must drop any leftover session allows for the same pair
+ * (defense in depth if a pair was also Allow Once'd earlier in the session).
+ */
+function syncSessionAllowsWithCrossOriginChange(change) {
+    if (!change) return;
+    const oldList = parseStorageChangeValue(change.oldValue);
+    const newList = parseStorageChangeValue(change.newValue);
+    if (!Array.isArray(oldList)) return;
+    const next = Array.isArray(newList) ? newList : [];
+    for (const entry of oldList) {
+        if (
+            entry?.origin &&
+            entry?.destination &&
+            !listHasCrossOriginEntry(next, entry.origin, entry.destination)
+        ) {
+            selectiveAllow.revokeSessionAllow(entry.origin, entry.destination);
+        }
+    }
+}
+
 const extensionOrigin = new URL(browser.runtime.getURL("")).origin;
 async function onMessage(message, sender) {
-    // Defense in depth: runtime.onMessage is extension-internal, but reject unexpected origins.
     if (sender.origin !== extensionOrigin) {
         console.warn("Message from unexpected origin:", sender.url);
         return;
@@ -294,19 +315,20 @@ async function onMessage(message, sender) {
                 return;
             }
 
-            const validated = validatePendingAllow(pending, message.tabId);
+            const validated = validatePendingAllow(pending);
             if (!validated.ok) {
                 console.warn("Rejected selective allow decision:", validated.reason, message);
-                // Invalid pending should not keep the pair locked from re-prompting.
                 selectiveAllow.clearPendingByPromptId(pending.promptId);
                 return;
             }
 
             const { origin, destination, originalUrl, tabId } = validated;
-            selectiveAllow.allowInSession(origin, destination);
             selectiveAllow.clearPendingByPromptId(pending.promptId);
 
-            if (message.type === "alwaysAllow") {
+            if (message.type === "allowOnce") {
+                selectiveAllow.allowInSession(origin, destination);
+            } else {
+                // Always Allow is storage-only so settings removal takes effect immediately.
                 await modifyItemInLocal(CROSS_ORIGIN_ALLOWLIST_KEY, [], (list) => {
                     if (listHasCrossOriginEntry(list, origin, destination)) {
                         return list;
@@ -328,6 +350,9 @@ browser.runtime.onMessage.addListener(onMessage);
 browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
     applyStorageChangesToCaches(changes);
+    if (Object.prototype.hasOwnProperty.call(changes, CROSS_ORIGIN_ALLOWLIST_KEY)) {
+        syncSessionAllowsWithCrossOriginChange(changes[CROSS_ORIGIN_ALLOWLIST_KEY]);
+    }
 });
 
 startup();
