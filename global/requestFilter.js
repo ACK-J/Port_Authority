@@ -2,7 +2,7 @@
  * Decision logic for whether a request should be blocked.
  * Kept free of badge/notification/storage side effects so it can be unit tested.
  */
-import { isHostAllowlisted } from "./allowlist.js";
+import { requestMatchesAllowlist } from "./allowlist.js";
 import {
     isLocalRequestUrl,
     isLiteralIpHostname,
@@ -233,16 +233,18 @@ export async function evaluateRequest(requestDetails, deps) {
         return { cancel: false, reason: "unparseable-origin" };
     }
 
-    const allowedDomains = await getAllowedDomains();
-    if (isHostAllowlisted(originUrl.host, allowedDomains)) {
-        return { cancel: false, reason: "allowlisted" };
-    }
-
     let url;
     try {
         url = new URL(requestDetails.url);
     } catch {
         return { cancel: false, reason: "unparseable-url" };
+    }
+
+    const allowedDomains = await getAllowedDomains();
+    // Domains match the page origin only. IP/CIDR entries also match destinations
+    // so allowlisting 127.0.0.1 works for scans from file:// or other pages.
+    if (requestMatchesAllowlist(originUrl.host, url.host, allowedDomains)) {
+        return { cancel: false, reason: "allowlisted" };
     }
 
     const requestHost = normalizeHostname(url.hostname);

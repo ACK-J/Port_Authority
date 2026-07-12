@@ -10,7 +10,7 @@ const LOCAL_REQUEST_PROTOCOLS = new Set([
 ]);
 
 /** @returns {number[]|null} four octets, or null if not a dotted IPv4 literal */
-function parseIPv4Octets(ip) {
+export function parseIPv4Octets(ip) {
     const parts = ip.split(".");
     if (parts.length !== 4) return null;
     const octets = parts.map(Number);
@@ -45,7 +45,7 @@ function isPrivateIPv4(ip) {
  * Accepts compressed form, zone IDs, and dotted IPv4 tails (::ffff:127.0.0.1).
  * @returns {number[]|null}
  */
-function expandIPv6(ip) {
+export function expandIPv6(ip) {
     let addr = ip.toLowerCase().split("%")[0];
 
     // Convert a trailing dotted-quad into two hextets before expansion.

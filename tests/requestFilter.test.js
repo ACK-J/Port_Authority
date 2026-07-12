@@ -89,6 +89,51 @@ export async function run() {
         );
         assertEqual(result.cancel, false, "allowlist matches host:port exactly");
     }
+    {
+        // Issue #66: portless IP allowlist matches origin on any port
+        const result = await evaluateRequest(
+            req({ originUrl: "http://127.0.0.1:3000/" }),
+            deps({ getAllowedDomains: async () => ["127.0.0.1"] })
+        );
+        assertEqual(result.cancel, false, "portless IP allowlist matches origin:port");
+        assertEqual(result.reason, "allowlisted", "allowlisted via IP");
+    }
+    {
+        // Issue #64: CIDR allowlist matches Proxmox-like LAN origins
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://192.168.1.50:8006/",
+                url: "https://192.168.1.50:8008/",
+            }),
+            deps({ getAllowedDomains: async () => ["192.168.1.0/24"] })
+        );
+        assertEqual(result.cancel, false, "CIDR allowlist matches LAN origin");
+        assertEqual(result.reason, "allowlisted", "allowlisted via CIDR");
+    }
+    {
+        // IP allowlist also matches scan destinations (e.g. TestPortScans from file://)
+        const result = await evaluateRequest(
+            req({
+                originUrl: "file:///tmp/TestPortScans.html",
+                url: "http://127.0.0.1:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["127.0.0.1"] })
+        );
+        assertEqual(result.cancel, false, "IP allowlist matches destination from file://");
+        assertEqual(result.reason, "allowlisted", "allowlisted via destination IP");
+    }
+    {
+        // Domain allowlist must NOT open all destinations
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://evil.example/",
+                url: "http://127.0.0.1:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["discord.com"] })
+        );
+        assertEqual(result.cancel, true, "domain allowlist does not match destinations");
+        assertEqual(result.reason, "portscan", "still blocked as portscan");
+    }
 
     suite("malformed URLs fail open");
     {

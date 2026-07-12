@@ -1,4 +1,13 @@
-import { extractURLHost, isHostAllowlisted } from "../global/allowlist.js";
+import {
+    extractURLHost,
+    isHostAllowlisted,
+    normalizeAllowlistEntry,
+    isCIDRAllowlistEntry,
+    isIPOrCIDREntry,
+    hostMatchesAllowlistEntry,
+    requestMatchesAllowlist,
+    ipInCIDR,
+} from "../global/allowlist.js";
 import { suite, assert, assertEqual, assertRejects } from "./harness.js";
 
 export async function run() {
@@ -13,7 +22,11 @@ export async function run() {
     assertEqual(extractURLHost("http://example.com:80/"), "example.com", "default http port dropped");
     assertEqual(extractURLHost("https://sub.domain.example.co.uk/x"), "sub.domain.example.co.uk", "multi-level domain");
     assertEqual(extractURLHost("http://127.0.0.1:3000/"), "127.0.0.1:3000", "IPv4 with port");
+    assertEqual(extractURLHost("127.0.0.1"), "127.0.0.1", "bare IPv4");
+    assertEqual(extractURLHost("127.0.0.1:3000"), "127.0.0.1:3000", "bare IPv4 with port");
     assertEqual(extractURLHost("http://[::1]:8080/"), "[::1]:8080", "IPv6 with port");
+    assertEqual(extractURLHost("::1"), "[::1]", "bare IPv6 gets brackets");
+    assertEqual(extractURLHost("[::1]"), "[::1]", "already-bracketed IPv6");
     assertEqual(extractURLHost("HTTPS://EXAMPLE.COM/Path"), "example.com", "hostname lowercased by URL");
 
     suite("extractURLHost rejects invalid input");
@@ -21,13 +34,100 @@ export async function run() {
     await assertRejects(() => Promise.resolve(extractURLHost("://")), "protocol-only throws");
     await assertRejects(() => Promise.resolve(extractURLHost("http://")), "empty host throws");
 
+    suite("normalizeAllowlistEntry domains and IPs");
+    assertEqual(normalizeAllowlistEntry("discord.com"), "discord.com", "domain");
+    assertEqual(normalizeAllowlistEntry("127.0.0.1"), "127.0.0.1", "IPv4");
+    assertEqual(normalizeAllowlistEntry("127.0.0.1:8080"), "127.0.0.1:8080", "IPv4 with port");
+    assertEqual(normalizeAllowlistEntry("::1"), "[::1]", "IPv6");
+    assertEqual(normalizeAllowlistEntry("192.168.1.0/24"), "192.168.1.0/24", "IPv4 CIDR preserved");
+    assertEqual(normalizeAllowlistEntry("10.0.0.0/8"), "10.0.0.0/8", "IPv4 /8 CIDR");
+    assertEqual(normalizeAllowlistEntry("fe80::/10"), "fe80::/10", "IPv6 CIDR");
+    assertEqual(normalizeAllowlistEntry("[fe80::]/10"), "fe80::/10", "bracketed IPv6 CIDR normalized");
+    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("")), "empty throws");
+    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("192.168.1.0/33")), "bad IPv4 prefix throws");
+    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("not-a-cidr/24")), "non-IP CIDR throws");
+    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("example.com/24")), "domain CIDR throws");
+
+    suite("isCIDRAllowlistEntry / isIPOrCIDREntry");
+    assert(isCIDRAllowlistEntry("192.168.1.0/24") === true, "IPv4 CIDR");
+    assert(isCIDRAllowlistEntry("0.0.0.0/0") === true, "IPv4 /0");
+    assert(isCIDRAllowlistEntry("fe80::/10") === true, "IPv6 CIDR");
+    assert(isCIDRAllowlistEntry("192.168.1.0") === false, "IP alone not CIDR");
+    assert(isCIDRAllowlistEntry("example.com") === false, "domain not CIDR");
+    assert(isCIDRAllowlistEntry("192.168.1.0/33") === false, "invalid prefix");
+    assert(isIPOrCIDREntry("127.0.0.1") === true, "portless IPv4");
+    assert(isIPOrCIDREntry("127.0.0.1:8080") === false, "IPv4 with port is not open IP entry");
+    assert(isIPOrCIDREntry("192.168.1.0/24") === true, "CIDR is IP-or-CIDR");
+    assert(isIPOrCIDREntry("example.com") === false, "domain is not IP-or-CIDR");
+    assert(isIPOrCIDREntry("[::1]") === true, "portless IPv6");
+
+    suite("ipInCIDR");
+    assert(ipInCIDR("192.168.1.50", "192.168.1.0/24") === true, "in /24");
+    assert(ipInCIDR("192.168.2.50", "192.168.1.0/24") === false, "out of /24");
+    assert(ipInCIDR("10.1.2.3", "10.0.0.0/8") === true, "in /8");
+    assert(ipInCIDR("11.0.0.1", "10.0.0.0/8") === false, "out of /8");
+    assert(ipInCIDR("127.0.0.1", "127.0.0.0/8") === true, "loopback /8");
+    assert(ipInCIDR("8.8.8.8", "0.0.0.0/0") === true, "everything in /0");
+    assert(ipInCIDR("192.168.1.1", "192.168.1.1/32") === true, "exact /32");
+    assert(ipInCIDR("192.168.1.2", "192.168.1.1/32") === false, "other /32");
+    assert(ipInCIDR("fe80::1", "fe80::/10") === true, "IPv6 link-local in /10");
+    assert(ipInCIDR("2001:db8::1", "fe80::/10") === false, "doc IPv6 not in fe80::/10");
+    assert(ipInCIDR("example.com", "192.168.1.0/24") === false, "domain not in CIDR");
+
     suite("isHostAllowlisted exact match semantics");
     assert(isHostAllowlisted("example.com", ["example.com"]) === true, "exact match");
     assert(isHostAllowlisted("example.com", ["other.com", "example.com"]) === true, "match in list");
     assert(isHostAllowlisted("example.com", []) === false, "empty list");
     assert(isHostAllowlisted("sub.example.com", ["example.com"]) === false, "subdomain not implied");
     assert(isHostAllowlisted("example.com", ["sub.example.com"]) === false, "parent not matched by child entry");
-    assert(isHostAllowlisted("example.com:8443", ["example.com"]) === false, "port-sensitive");
+    assert(isHostAllowlisted("example.com:8443", ["example.com"]) === false, "port-sensitive domain");
     assert(isHostAllowlisted("example.com:8443", ["example.com:8443"]) === true, "host:port exact");
     assert(isHostAllowlisted("Example.Com", ["example.com"]) === false, "case-sensitive host compare (URL.host is lowercase)");
+
+    suite("isHostAllowlisted IP address matching (issue #66)");
+    assert(isHostAllowlisted("127.0.0.1", ["127.0.0.1"]) === true, "exact IPv4");
+    assert(isHostAllowlisted("127.0.0.1:8080", ["127.0.0.1"]) === true, "portless IP matches any port");
+    assert(isHostAllowlisted("127.0.0.1:3000", ["127.0.0.1"]) === true, "portless IP matches other port");
+    assert(isHostAllowlisted("127.0.0.1:8080", ["127.0.0.1:8080"]) === true, "IP:port exact");
+    assert(isHostAllowlisted("127.0.0.1:3000", ["127.0.0.1:8080"]) === false, "IP:port is port-sensitive");
+    assert(isHostAllowlisted("10.0.0.1:8080", ["127.0.0.1"]) === false, "different IP not matched");
+    assert(isHostAllowlisted("localhost:3000", ["127.0.0.1"]) === true, "localhost matches 127.0.0.1 entry");
+    assert(isHostAllowlisted("127.0.0.1:3000", ["localhost"]) === false, "localhost entry is domain-exact (no port wildcard)");
+    assert(hostMatchesAllowlistEntry("[::1]:8080", "[::1]") === true, "portless IPv6 matches any port");
+
+    suite("isHostAllowlisted CIDR matching (issue #64)");
+    assert(isHostAllowlisted("192.168.1.50:8006", ["192.168.1.0/24"]) === true, "Proxmox-like origin in /24");
+    assert(isHostAllowlisted("192.168.2.50:8006", ["192.168.1.0/24"]) === false, "outside /24");
+    assert(isHostAllowlisted("10.0.5.1", ["10.0.0.0/8"]) === true, "in /8");
+    assert(isHostAllowlisted("fe80::abcd:1", ["fe80::/10"]) === true, "IPv6 in CIDR");
+
+    suite("requestMatchesAllowlist origin vs destination");
+    assert(
+        requestMatchesAllowlist("evil.example", "127.0.0.1:80", ["127.0.0.1"]) === true,
+        "IP entry matches destination from untrusted origin"
+    );
+    assert(
+        requestMatchesAllowlist("evil.example", "10.0.0.1:80", ["127.0.0.1"]) === false,
+        "IP entry does not match other destination"
+    );
+    assert(
+        requestMatchesAllowlist("evil.example", "127.0.0.1:80", ["discord.com"]) === false,
+        "domain entry does not match destinations"
+    );
+    assert(
+        requestMatchesAllowlist("discord.com", "127.0.0.1:80", ["discord.com"]) === true,
+        "domain entry matches origin"
+    );
+    assert(
+        requestMatchesAllowlist("", "127.0.0.1:80", ["127.0.0.1"]) === true,
+        "file:// empty origin still matches IP destination"
+    );
+    assert(
+        requestMatchesAllowlist("evil.example", "192.168.1.50:8008", ["192.168.1.0/24"]) === true,
+        "CIDR entry matches destination"
+    );
+    assert(
+        requestMatchesAllowlist("192.168.1.50:8006", "192.168.1.50:8008", ["192.168.1.0/24"]) === true,
+        "CIDR matches Proxmox origin"
+    );
 }
