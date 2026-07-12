@@ -60,6 +60,8 @@ export async function run() {
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("fe80::/129")), "bad IPv6 prefix throws");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("http://192.168.1.0/33")), "scheme + bad prefix throws");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("192.168.1.0/33/x")), "bad prefix with path throws");
+    assertEqual(normalizeAllowlistEntry("http://127.0.0.1/8080/status"), "127.0.0.1", "numeric URL path is not CIDR");
+    assertEqual(normalizeAllowlistEntry("127.0.0.1/8080"), "127.0.0.1", "large numeric path segment is not CIDR");
 
 
     suite("isCIDRAllowlistEntry / isIPOrCIDREntry");

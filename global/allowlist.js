@@ -132,10 +132,19 @@ function extractLeadingCidr(input) {
     if (!isIpNetwork) return null;
 
     const candidate = `${bareNetwork}/${prefixMatch[1]}`;
-    if (!isCIDRAllowlistEntry(candidate)) {
+    if (isCIDRAllowlistEntry(candidate)) {
+        return candidate;
+    }
+
+    // Near-miss prefixes are CIDR typos (`/33`, `/129`). Much larger numbers are
+    // treated as normal URL paths (e.g. http://127.0.0.1/8080/status).
+    const prefixNum = Number(prefixMatch[1]);
+    const isV4 = parseIPv4Octets(bareNetwork) !== null;
+    const maxPrefix = isV4 ? 32 : 128;
+    if (prefixNum <= maxPrefix * 2) {
         throw new Error("invalid CIDR notation");
     }
-    return candidate;
+    return null;
 }
 
 /**
