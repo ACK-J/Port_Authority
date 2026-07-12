@@ -75,7 +75,6 @@ function scheduleSelectiveAllowPrompt(pending) {
                     pending.origin,
                     pending.destination,
                     pending.originalUrl,
-                    pending.navigationTabId,
                     pending.promptId
                 );
             } catch (error) {
@@ -113,7 +112,8 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
 
     const origin = originAllowKey(originUrl);
     const destination = url.host;
-    if (!destination) {
+    if (!origin || !destination) {
+        // Unkeyable opaque initiator (e.g. data:) — keep the silent block path.
         return blockPortScan(requestDetails, url);
     }
 
@@ -127,20 +127,15 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
         return { cancel: false };
     }
 
-    const navigation = {
+    // Atomic create-or-update after the storage await so concurrent navigations
+    // for the same pair share one promptId / one decision UI.
+    const { pending, created } = selectiveAllow.ensurePendingPrompt({
+        origin,
+        destination,
         originalUrl: requestDetails.url,
         navigationTabId: normalizedNavigationTabId(requestDetails.tabId),
-    };
-
-    if (selectiveAllow.hasPendingPrompt(origin, destination)) {
-        // Keep the latest blocked navigation for when the user allows.
-        selectiveAllow.updatePendingNavigation(origin, destination, navigation);
-    } else {
-        const pending = selectiveAllow.createPendingPrompt({
-            origin,
-            destination,
-            ...navigation,
-        });
+    });
+    if (created) {
         scheduleSelectiveAllowPrompt(pending);
     }
 

@@ -121,7 +121,6 @@ export async function run() {
             "github.com",
             "localhost:8080",
             "http://localhost:8080/app",
-            9,
             "prompt-abc"
         );
         assertEqual(windowsCreated.length, 1, "popup window created");
@@ -130,7 +129,8 @@ export async function run() {
         const url = new URL(windowsCreated[0].url);
         assert(url.pathname.endsWith("selectiveAllow/selectiveAllow.html"), "popup path");
         assertEqual(url.searchParams.get("promptId"), "prompt-abc", "promptId query");
-        assertEqual(url.searchParams.get("tabId"), "9", "tabId query");
+        assertEqual(url.searchParams.get("tabId"), null, "tabId not in query");
+        assertEqual(url.searchParams.get("origin"), "github.com", "origin display query");
     }
     {
         windowsCreated.length = 0;
@@ -142,7 +142,6 @@ export async function run() {
             "github.com",
             "localhost:8080",
             "http://localhost:8080/",
-            3,
             "prompt-y"
         );
         assertEqual(result?.mode, "tab", "falls back to tab mode");
@@ -162,7 +161,6 @@ export async function run() {
             "github.com",
             "localhost:8080",
             "http://localhost:8080/",
-            3,
             "prompt-z"
         );
         assertEqual(result?.mode, "tab", "falls back when window id missing");

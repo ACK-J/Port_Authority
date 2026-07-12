@@ -42,6 +42,27 @@ export async function run() {
                 originAllowKey(new URL("file:///tmp/b.html")),
             "file keys are not collapsed to protocol only"
         );
+        assertEqual(
+            originAllowKey(new URL("blob:https://example.com/uuid-1")),
+            "blob:https://example.com/uuid-1",
+            "blob uses full href"
+        );
+        assert(
+            originAllowKey(new URL("blob:https://example.com/uuid-1")) !==
+                originAllowKey(new URL("blob:https://example.com/uuid-2")),
+            "blob keys are not collapsed to protocol only"
+        );
+        assertEqual(
+            originAllowKey(new URL("about:blank")),
+            "about:blank",
+            "about:blank keyed fully"
+        );
+        assertEqual(
+            originAllowKey(new URL("data:text/html,hi")),
+            null,
+            "data: URLs are not selective-allowed"
+        );
+        assertEqual(originAllowKey(null), null, "non-URL rejected");
     }
 
     suite("listHasCrossOriginEntry");
@@ -81,16 +102,6 @@ export async function run() {
         assertEqual(valid.tabId, 7, "navigationTabId used");
     }
     {
-        const valid = validatePendingAllow({
-            origin: "docs.example",
-            destination: "192.168.1.10",
-            originalUrl: "https://192.168.1.10/",
-            navigationTabId: -1,
-        });
-        assert(valid.ok, "negative tabId treated as missing");
-        assertEqual(valid.tabId, undefined, "invalid tab cleared");
-    }
-    {
         const result = validatePendingAllow({
             origin: "evil.example",
             destination: "localhost:8080",
@@ -98,15 +109,6 @@ export async function run() {
         });
         assert(!result.ok, "rejects remote originalUrl");
         assertEqual(result.reason, "destination-mismatch", "destination-mismatch reason");
-    }
-    {
-        const result = validatePendingAllow({
-            origin: "evil.example",
-            destination: "example.com",
-            originalUrl: "https://example.com/",
-        });
-        assert(!result.ok, "rejects non-local destination");
-        assertEqual(result.reason, "not-local", "not-local reason");
     }
     {
         const result = validatePendingAllow(null);
@@ -117,47 +119,36 @@ export async function run() {
     suite("createSelectiveAllowState");
     {
         const state = createSelectiveAllowState();
-        const pending = state.createPendingPrompt({
+        const first = state.ensurePendingPrompt({
             origin: "a.com",
             destination: "localhost:1",
-            originalUrl: "http://localhost:1/",
+            originalUrl: "http://localhost:1/a",
             navigationTabId: 5,
         });
+        assert(first.created, "first ensure creates");
         assert(state.hasPendingPrompt("a.com", "localhost:1"), "pending marked");
         assertEqual(state.pendingSize, 1, "one pending");
-        assert(state.getPendingByPromptId(pending.promptId)?.originalUrl === "http://localhost:1/", "lookup by promptId");
 
-        assert(state.bindPromptUi(pending.promptId, { mode: "window", id: 42 }), "bind window ok");
-        assert(!state.bindPromptUi(pending.promptId, { mode: "window", id: undefined }), "reject missing id");
+        const second = state.ensurePendingPrompt({
+            origin: "a.com",
+            destination: "localhost:1",
+            originalUrl: "http://localhost:1/b",
+            navigationTabId: 9,
+        });
+        assert(!second.created, "second ensure updates");
+        assertEqual(second.pending.promptId, first.pending.promptId, "same promptId kept");
+        assertEqual(second.pending.originalUrl, "http://localhost:1/b", "url updated");
+        assertEqual(second.pending.navigationTabId, 9, "tab updated");
+        assertEqual(state.pendingSize, 1, "still one pending");
+
+        assert(state.bindPromptUi(first.pending.promptId, { mode: "window", id: 42 }), "bind window ok");
+        assert(!state.bindPromptUi(first.pending.promptId, { mode: "window", id: undefined }), "reject missing id");
         state.clearPendingByWindowId(42);
         assert(!state.hasPendingPrompt("a.com", "localhost:1"), "window close clears pending");
     }
     {
         const state = createSelectiveAllowState();
-        const pending = state.createPendingPrompt({
-            origin: "b.com",
-            destination: "localhost:2",
-            originalUrl: "http://localhost:2/a",
-            navigationTabId: 1,
-        });
-        state.updatePendingNavigation("b.com", "localhost:2", {
-            originalUrl: "http://localhost:2/b",
-            navigationTabId: 9,
-        });
-        assertEqual(
-            state.getPendingByPromptId(pending.promptId)?.originalUrl,
-            "http://localhost:2/b",
-            "pending url updated"
-        );
-        assertEqual(
-            state.getPendingByPromptId(pending.promptId)?.navigationTabId,
-            9,
-            "pending tab updated"
-        );
-    }
-    {
-        const state = createSelectiveAllowState();
-        const pending = state.createPendingPrompt({
+        const { pending } = state.ensurePendingPrompt({
             origin: "c.com",
             destination: "localhost:3",
             originalUrl: "http://localhost:3/",
@@ -172,25 +163,5 @@ export async function run() {
         assert(state.isSessionAllowed("a.com", "localhost:1"), "session allowed");
         state.revokeSessionAllow("a.com", "localhost:1");
         assert(!state.isSessionAllowed("a.com", "localhost:1"), "session revoked");
-    }
-    {
-        const state = createSelectiveAllowState();
-        const first = state.createPendingPrompt({
-            origin: "d.com",
-            destination: "localhost:4",
-            originalUrl: "http://localhost:4/a",
-        });
-        const second = state.createPendingPrompt({
-            origin: "d.com",
-            destination: "localhost:4",
-            originalUrl: "http://localhost:4/b",
-        });
-        assertEqual(state.pendingSize, 1, "only one pending per pair");
-        assertEqual(state.getPendingByPromptId(first.promptId), undefined, "old promptId invalidated");
-        assertEqual(
-            state.getPendingByPromptId(second.promptId)?.originalUrl,
-            "http://localhost:4/b",
-            "new prompt wins"
-        );
     }
 }

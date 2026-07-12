@@ -57,8 +57,8 @@ export async function run() {
     assert(background.includes("clearPendingByWindowId"), "clears pending when prompt window closes");
     assert(background.includes("windows.onRemoved"), "listens for prompt window close");
     assert(background.includes("originAllowKey"), "uses stable origin keys including file paths");
+    assert(background.includes("ensurePendingPrompt"), "atomic pending create-or-update");
     assert(background.includes("revokeSessionAllow"), "can revoke session allows");
-    assert(background.includes("updatePendingNavigation"), "updates pending url while prompt open");
     assert(background.includes("syncSessionAllowsWithCrossOriginChange"), "settings removal syncs session");
 
     suite("requestFilter.js ThreatMetrix remediation surface");

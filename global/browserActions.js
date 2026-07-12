@@ -68,25 +68,12 @@ export async function getActiveTabId() {
  * Build the Selective Allow decision page URL.
  * @param {string} origin
  * @param {string} destination
- * @param {string} originalUrl
- * @param {number} [tabId]
- * @param {string} [promptId]
+ * @param {string} originalUrl Display-only; authority is promptId + pending record
+ * @param {string} promptId
  * @returns {string}
  */
-export function buildSelectiveAllowUrl(
-    origin,
-    destination,
-    originalUrl,
-    tabId,
-    promptId
-) {
-    const params = new URLSearchParams({ origin, destination, originalUrl });
-    if (Number.isInteger(tabId) && tabId >= 0) {
-        params.set("tabId", String(tabId));
-    }
-    if (typeof promptId === "string" && promptId.length > 0) {
-        params.set("promptId", promptId);
-    }
+export function buildSelectiveAllowUrl(origin, destination, originalUrl, promptId) {
+    const params = new URLSearchParams({ origin, destination, originalUrl, promptId });
     return browser.runtime.getURL(`selectiveAllow/selectiveAllow.html?${params}`);
 }
 
@@ -97,24 +84,11 @@ export function buildSelectiveAllowUrl(
  * @param {string} origin
  * @param {string} destination
  * @param {string} originalUrl
- * @param {number} [tabId]
- * @param {string} [promptId]
+ * @param {string} promptId
  * @returns {Promise<{ mode: "window"|"tab", id: number }|undefined>}
  */
-export async function openSelectiveAllowPopup(
-    origin,
-    destination,
-    originalUrl,
-    tabId,
-    promptId
-) {
-    const url = buildSelectiveAllowUrl(
-        origin,
-        destination,
-        originalUrl,
-        tabId,
-        promptId
-    );
+export async function openSelectiveAllowPopup(origin, destination, originalUrl, promptId) {
+    const url = buildSelectiveAllowUrl(origin, destination, originalUrl, promptId);
 
     try {
         const win = await browser.windows.create({

@@ -7,15 +7,21 @@ import { isLocalRequestUrl } from "./privateAddress.js";
 /** Storage key for persisted { origin, destination } pairs. */
 export const CROSS_ORIGIN_ALLOWLIST_KEY = "cross_origin_allowlist";
 
+/** Reject pathological data:/blob keys from being persisted or prompted. */
+const MAX_ORIGIN_KEY_LENGTH = 512;
+
 /**
  * Stable allowlist / pending key for the page that initiated the navigation.
- * file:// URLs use the full path so one HTML file cannot authorize all files.
+ * - http(s) / host-based: `URL.host`
+ * - file://: path so one HTML file cannot authorize all files
+ * - other hostless (blob:, about:, …): full href without hash
+ * Returns null when the initiator cannot be keyed safely (caller should silent-block).
  * @param {URL} originUrl
- * @returns {string}
+ * @returns {string|null}
  */
 export function originAllowKey(originUrl) {
     if (!(originUrl instanceof URL)) {
-        return "unknown";
+        return null;
     }
     if (originUrl.protocol === "file:") {
         return `file://${originUrl.pathname}`;
@@ -23,7 +29,15 @@ export function originAllowKey(originUrl) {
     if (originUrl.host) {
         return originUrl.host;
     }
-    return originUrl.protocol.replace(":", "") || "unknown";
+    // data: URLs are content-addressed and can be huge — do not selective-allow.
+    if (originUrl.protocol === "data:") {
+        return null;
+    }
+    const key = originUrl.href.split("#")[0];
+    if (!key || key.length > MAX_ORIGIN_KEY_LENGTH) {
+        return null;
+    }
+    return key;
 }
 
 /**
@@ -165,20 +179,24 @@ export function createSelectiveAllowState() {
         },
 
         /**
+         * Atomically create-or-update the pending prompt for a pair.
+         * Callers should only open UI when `created` is true.
          * @param {{
          *   origin: string,
          *   destination: string,
          *   originalUrl: string,
          *   navigationTabId?: number,
          * }} details
-         * @returns {PendingPrompt}
+         * @returns {{ pending: PendingPrompt, created: boolean }}
          */
-        createPendingPrompt(details) {
+        ensurePendingPrompt(details) {
             const existing = findPending(
                 (r) => r.origin === details.origin && r.destination === details.destination
             );
             if (existing) {
-                pendingById.delete(existing.promptId);
+                existing.originalUrl = details.originalUrl;
+                existing.navigationTabId = details.navigationTabId;
+                return { pending: existing, created: false };
             }
 
             /** @type {PendingPrompt} */
@@ -190,22 +208,7 @@ export function createSelectiveAllowState() {
                 navigationTabId: details.navigationTabId,
             };
             pendingById.set(record.promptId, record);
-            return record;
-        },
-
-        /**
-         * Keep the latest blocked navigation while a prompt is already open.
-         * @param {string} origin
-         * @param {string} destination
-         * @param {{ originalUrl: string, navigationTabId?: number }} navigation
-         */
-        updatePendingNavigation(origin, destination, navigation) {
-            const record = findPending(
-                (r) => r.origin === origin && r.destination === destination
-            );
-            if (!record) return;
-            record.originalUrl = navigation.originalUrl;
-            record.navigationTabId = navigation.navigationTabId;
+            return { pending: record, created: true };
         },
 
         /**
