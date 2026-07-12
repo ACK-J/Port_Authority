@@ -50,18 +50,18 @@ export async function run() {
     assertEqual(normalizeAllowlistEntry("http://192.168.1.0/24"), "192.168.1.0/24", "scheme-prefixed CIDR");
     assertEqual(normalizeAllowlistEntry("192.168.1.0/24/"), "192.168.1.0/24", "CIDR with trailing slash");
     assertEqual(normalizeAllowlistEntry("https://10.0.0.0/8"), "10.0.0.0/8", "https-prefixed CIDR");
-    assertEqual(normalizeAllowlistEntry("http://192.168.1.0/24/dashboard"), "192.168.1.0/24", "CIDR with extra path keeps prefix");
-    assertEqual(normalizeAllowlistEntry("192.168.1.0/24/foo"), "192.168.1.0/24", "bare CIDR with extra path keeps prefix");
-    assertEqual(normalizeAllowlistEntry("fe80::/10/x"), "fe80::/10", "IPv6 CIDR with extra path keeps prefix");
+    // Extra path means a page URL, not a subnet allowlist entry
+    assertEqual(normalizeAllowlistEntry("http://192.168.1.50/24/items"), "192.168.1.50", "IP URL with path stores host only");
+    assertEqual(normalizeAllowlistEntry("192.168.1.0/24/foo"), "192.168.1.0", "CIDR-like path with extra segments stores host");
+    assertEqual(normalizeAllowlistEntry("fe80::/10/x"), "[fe80::]", "IPv6 URL with extra path stores host");
+    assertEqual(normalizeAllowlistEntry("http://127.0.0.1/8080/status"), "127.0.0.1", "numeric URL path stores host");
     assertEqual(normalizeAllowlistEntry("example.com/24"), "example.com", "domain with path-like slash is not CIDR");
     assertEqual(normalizeAllowlistEntry("not-a-cidr/24"), "not-a-cidr", "non-IP slash is treated as host/path");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("")), "empty throws");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("192.168.1.0/33")), "bad IPv4 prefix throws");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("fe80::/129")), "bad IPv6 prefix throws");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("http://192.168.1.0/33")), "scheme + bad prefix throws");
-    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("192.168.1.0/33/x")), "bad prefix with path throws");
-    assertEqual(normalizeAllowlistEntry("http://127.0.0.1/8080/status"), "127.0.0.1", "numeric URL path is not CIDR");
-    assertEqual(normalizeAllowlistEntry("127.0.0.1/8080"), "127.0.0.1", "large numeric path segment is not CIDR");
+    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("127.0.0.1/8080")), "exact invalid prefix throws");
 
 
     suite("isCIDRAllowlistEntry / isIPOrCIDREntry");
@@ -165,9 +165,8 @@ export async function run() {
     assertEqual(normalizeAllowlistEntry("http://192.168.1.0/24"), "192.168.1.0/24", "scheme CIDR keeps prefix");
     assertEqual(normalizeAllowlistEntry("192.168.1.0/24/"), "192.168.1.0/24", "trailing slash CIDR keeps prefix");
     assert(normalizeAllowlistEntry("http://192.168.1.0/24") !== "192.168.1.0", "scheme CIDR is not truncated to host");
-    // Bug: CIDR followed by extra path segments also dropped the prefix
-    assertEqual(normalizeAllowlistEntry("http://192.168.1.0/24/dashboard"), "192.168.1.0/24", "CIDR+path keeps prefix");
-    assertEqual(normalizeAllowlistEntry("fe80::/10/extra"), "fe80::/10", "IPv6 CIDR+path keeps prefix");
+    // Extra path on an IP URL is a page URL, not an expanded subnet
+    assertEqual(normalizeAllowlistEntry("http://192.168.1.50/24/items"), "192.168.1.50", "IP page URL does not become CIDR");
     // Bug: IPv4-mapped literals did not match IPv4/CIDR allowlist entries
     assert(ipInCIDR("::ffff:192.168.1.50", "192.168.1.0/24") === true, "mapped IPv6 in IPv4 CIDR");
     assert(ipInCIDR("[::ffff:7f00:1]", "127.0.0.0/8") === true, "mapped hex loopback in 127/8");

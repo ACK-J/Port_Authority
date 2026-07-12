@@ -160,9 +160,9 @@ export function normalizeAllowlistEntry(input) {
 }
 
 /**
- * Interpret a paste as CIDR when URL parsing yields an IP hostname whose first
- * path segment is a prefix length (e.g. `http://192.168.1.0/24/dashboard` →
- * pathname `/24/dashboard`).
+ * Interpret a paste as CIDR only when the URL path is exactly a prefix length
+ * (`/24` or `/24/`). Extra path segments mean a normal page URL — store the
+ * host, not a subnet (e.g. `http://192.168.1.50/24/items` → `192.168.1.50`).
  * @param {string} input
  * @returns {string|null}
  */
@@ -179,26 +179,19 @@ function extractLeadingCidr(input) {
         return null;
     }
 
-    // pathname: "/24", "/24/dashboard", "/8080/status", or "/"
-    const firstSegment = parsed.pathname.split("/").find((part) => part.length > 0);
-    if (!firstSegment || !isAllDigits(firstSegment)) {
+    // Exactly one path segment, all digits — otherwise this is not CIDR notation.
+    const segments = parsed.pathname.split("/").filter((part) => part.length > 0);
+    if (segments.length !== 1 || !isAllDigits(segments[0])) {
         return null;
     }
 
-    const candidate = `${bareNetwork}/${firstSegment}`;
+    const candidate = `${bareNetwork}/${segments[0]}`;
     if (isCIDRAllowlistEntry(candidate)) {
         return candidate;
     }
 
-    // Near-miss prefixes are CIDR typos (`/33`, `/129`). Much larger numbers are
-    // normal URL paths (e.g. http://127.0.0.1/8080/status).
-    const prefixNum = Number(firstSegment);
-    const isV4 = parseIPv4Octets(bareNetwork) !== null;
-    const maxPrefix = isV4 ? 32 : 128;
-    if (prefixNum <= maxPrefix * 2) {
-        throw new Error("invalid CIDR notation");
-    }
-    return null;
+    // Exact `ip/N` with an out-of-range prefix is a CIDR typo, not a page path.
+    throw new Error("invalid CIDR notation");
 }
 
 /**
