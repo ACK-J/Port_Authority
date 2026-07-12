@@ -77,7 +77,9 @@ export function isIPOrCIDREntry(entry) {
 
     try {
         const entryUrl = new URL(`http://${entry}/`);
-        return entryUrl.host === entryUrl.hostname && isLiteralIpHostname(entryUrl.hostname);
+        // Use `.port` (not host===hostname): IPv6 brackets can make host≠hostname
+        // in some URL implementations.
+        return entryUrl.port === "" && isLiteralIpHostname(entryUrl.hostname);
     } catch {
         return false;
     }
@@ -96,16 +98,17 @@ export function normalizeAllowlistEntry(input) {
         throw new Error("empty allowlist entry");
     }
 
-    // Only treat slash-containing input as CIDR when the network side is an IP.
-    // Full URLs (`https://example.com/path`) and bare hosts with paths
-    // (`discord.com/invite`) must still go through extractURLHost.
-    if (looksLikeCidrAttempt(input)) {
-        if (!isCIDRAllowlistEntry(input)) {
+    // Allow paste mistakes like `http://192.168.1.0/24` or `192.168.1.0/24/`.
+    // Strip scheme + trailing slashes only for the CIDR candidate check so
+    // normal URLs/paths still fall through to extractURLHost.
+    const cidrCandidate = input.replace(/^\w+:\/\//, "").replace(/\/+$/, "");
+    if (looksLikeCidrAttempt(cidrCandidate)) {
+        if (!isCIDRAllowlistEntry(cidrCandidate)) {
             throw new Error("invalid CIDR notation");
         }
-        const slashIndex = input.lastIndexOf("/");
-        const network = normalizeHostname(input.slice(0, slashIndex));
-        const prefix = input.slice(slashIndex + 1);
+        const slashIndex = cidrCandidate.lastIndexOf("/");
+        const network = normalizeHostname(cidrCandidate.slice(0, slashIndex));
+        const prefix = cidrCandidate.slice(slashIndex + 1);
         // Store IPv6 networks without brackets for stable compares.
         return `${network}/${prefix}`;
     }
@@ -229,7 +232,9 @@ export function hostMatchesAllowlistEntry(host, allowlistEntry) {
     const entryHostname = canonicalizeAllowlistHostname(entryUrl.hostname);
 
     // Portless IP entry: match the same address on any port.
-    if (entryUrl.host === entryUrl.hostname && isLiteralIpHostname(entryUrl.hostname)) {
+    // Check `.port` rather than host===hostname — IPv6 bracket handling differs
+    // across URL implementations (Node keeps brackets on hostname; some browsers omit them).
+    if (entryUrl.port === "" && isLiteralIpHostname(entryUrl.hostname)) {
         return hostHostname === entryHostname;
     }
 
