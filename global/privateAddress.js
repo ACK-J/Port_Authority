@@ -10,7 +10,7 @@ const LOCAL_REQUEST_PROTOCOLS = new Set([
 ]);
 
 /** @returns {number[]|null} four octets, or null if not a dotted IPv4 literal */
-function parseIPv4Octets(ip) {
+export function parseIPv4Octets(ip) {
     const parts = ip.split(".");
     if (parts.length !== 4) return null;
     const octets = parts.map(Number);
@@ -45,7 +45,7 @@ function isPrivateIPv4(ip) {
  * Accepts compressed form, zone IDs, and dotted IPv4 tails (::ffff:127.0.0.1).
  * @returns {number[]|null}
  */
-function expandIPv6(ip) {
+export function expandIPv6(ip) {
     let addr = ip.toLowerCase().split("%")[0];
 
     // Convert a trailing dotted-quad into two hextets before expansion.
@@ -176,6 +176,28 @@ export function isLiteralIpHostname(hostname) {
     const host = normalizeHostname(hostname);
     if (host.includes(":")) return expandIPv6(host) !== null;
     return parseIPv4Octets(host) !== null;
+}
+
+/**
+ * If `hostname` is an IPv4-mapped or IPv4-compatible IPv6 literal, return the
+ * embedded dotted IPv4 address. Otherwise return the normalized hostname.
+ * @param {string} hostname
+ * @returns {string}
+ */
+export function unwrapIpv4MappedAddress(hostname) {
+    const bare = normalizeHostname(hostname);
+    const hextets = expandIPv6(bare);
+    if (!hextets) return bare;
+
+    // :: and ::1 are reserved; they share the deprecated IPv4-compatible
+    // ::/96 prefix but must not unwrap to 0.0.0.0 / 0.0.0.1.
+    if (hextets.every((h) => h === 0)) return bare;
+    if (hextets.every((h, i) => (i === 7 ? h === 1 : h === 0))) return bare;
+
+    if (isIpv4MappedHextets(hextets) || isIpv4CompatibleHextets(hextets)) {
+        return ipv4FromHextets(hextets[6], hextets[7]);
+    }
+    return bare;
 }
 
 /**

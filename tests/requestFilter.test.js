@@ -89,6 +89,122 @@ export async function run() {
         );
         assertEqual(result.cancel, false, "allowlist matches host:port exactly");
     }
+    {
+        // Issue #66: portless IP allowlist matches origin on any port
+        const result = await evaluateRequest(
+            req({ originUrl: "http://127.0.0.1:3000/" }),
+            deps({ getAllowedDomains: async () => ["127.0.0.1"] })
+        );
+        assertEqual(result.cancel, false, "portless IP allowlist matches origin:port");
+        assertEqual(result.reason, "allowlisted", "allowlisted via IP");
+    }
+    {
+        // Issue #64: CIDR allowlist matches Proxmox-like LAN origins
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://192.168.1.50:8006/",
+                url: "https://192.168.1.50:8008/",
+            }),
+            deps({ getAllowedDomains: async () => ["192.168.1.0/24"] })
+        );
+        assertEqual(result.cancel, false, "CIDR allowlist matches LAN origin");
+        assertEqual(result.reason, "allowlisted", "allowlisted via CIDR");
+    }
+    {
+        // IP allowlist also matches scan destinations (e.g. TestPortScans from file://)
+        const result = await evaluateRequest(
+            req({
+                originUrl: "file:///tmp/TestPortScans.html",
+                url: "http://127.0.0.1:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["127.0.0.1"] })
+        );
+        assertEqual(result.cancel, false, "IP allowlist matches destination from file://");
+        assertEqual(result.reason, "allowlisted", "allowlisted via destination IP");
+    }
+    {
+        // Domain allowlist must NOT open all destinations
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://evil.example/",
+                url: "http://127.0.0.1:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["discord.com"] })
+        );
+        assertEqual(result.cancel, true, "domain allowlist does not match destinations");
+        assertEqual(result.reason, "portscan", "still blocked as portscan");
+    }
+
+    suite("allowlist review-fix regressions (end-to-end)");
+    {
+        // Portless IPv6 must wildcard ports (URL.port-based, not host===hostname)
+        const result = await evaluateRequest(
+            req({
+                originUrl: "http://[::1]:3000/",
+                url: "http://[::1]:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["[::1]"] })
+        );
+        assertEqual(result.cancel, false, "portless IPv6 allowlist matches origin:port");
+        assertEqual(result.reason, "allowlisted", "allowlisted via IPv6");
+    }
+    {
+        const result = await evaluateRequest(
+            req({
+                originUrl: "file:///tmp/TestPortScans.html",
+                url: "http://[::1]:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["[::1]"] })
+        );
+        assertEqual(result.cancel, false, "portless IPv6 allowlist matches file:// destination");
+        assertEqual(result.reason, "allowlisted", "allowlisted via IPv6 destination");
+    }
+    {
+        // IPv4-mapped loopback must match a 127.0.0.1 allowlist entry
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://evil.example/",
+                url: "http://[::ffff:127.0.0.1]:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["127.0.0.1"] })
+        );
+        assertEqual(result.cancel, false, "IPv4-mapped loopback destination matches 127.0.0.1");
+        assertEqual(result.reason, "allowlisted", "allowlisted via mapped unwrap");
+    }
+    {
+        const result = await evaluateRequest(
+            req({
+                originUrl: "http://[::ffff:192.168.1.50]:8006/",
+                url: "http://[::ffff:192.168.1.50]:8008/",
+            }),
+            deps({ getAllowedDomains: async () => ["192.168.1.0/24"] })
+        );
+        assertEqual(result.cancel, false, "IPv4-mapped LAN origin matches IPv4 CIDR");
+        assertEqual(result.reason, "allowlisted", "allowlisted via mapped CIDR");
+    }
+    {
+        // Without allowlist, mapped loopback is still a port scan
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://evil.example/",
+                url: "http://[::ffff:127.0.0.1]:80/",
+            }),
+            deps()
+        );
+        assertEqual(result.cancel, true, "mapped loopback still blocked without allowlist");
+        assertEqual(result.reason, "portscan", "portscan for mapped loopback");
+    }
+    {
+        const result = await evaluateRequest(
+            req({
+                originUrl: "https://10.0.0.1/",
+                url: "http://10.0.0.1:80/",
+            }),
+            deps({ getAllowedDomains: async () => ["192.168.1.0/24"] })
+        );
+        assertEqual(result.cancel, true, "origin outside CIDR still blocked");
+        assertEqual(result.reason, "portscan", "portscan outside CIDR");
+    }
 
     suite("malformed URLs fail open");
     {

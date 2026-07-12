@@ -61,7 +61,7 @@ export async function run() {
     assert(requestFilter.includes("lexisnexisrisk.com"), "lists lexisnexisrisk.com");
     assert(requestFilter.includes("lnrsoftware.com"), "lists lnrsoftware.com");
     assert(requestFilter.includes('from "./allowlist.js"'), "uses shared allowlist helper");
-    assert(requestFilter.includes("isHostAllowlisted"), "delegates allowlist checks");
+    assert(requestFilter.includes("requestMatchesAllowlist"), "delegates allowlist checks");
     assert(requestFilter.includes('from "./privateAddress.js"'), "imports privateAddress helpers");
 
     suite("privateAddress.js owns hostname normalization");
@@ -71,7 +71,7 @@ export async function run() {
     suite("settings.js uses shared allowlist helper");
     const settings = readText("settings/settings.js");
     assert(settings.includes('from "../global/allowlist.js"'), "imports allowlist module");
-    assert(settings.includes("extractURLHost"), "uses extractURLHost");
+    assert(settings.includes("normalizeAllowlistEntry"), "uses normalizeAllowlistEntry");
 
     suite("core modules exist");
     for (const path of [

@@ -1,6 +1,6 @@
 import { getItemFromLocal, modifyItemInLocal } from "../global/BrowserStorageManager.js";
 import { createElement } from "../global/domUtils.js";
-import { extractURLHost } from "../global/allowlist.js";
+import { normalizeAllowlistEntry } from "../global/allowlist.js";
 
 /**
  * A single item in the allowlist display
@@ -82,10 +82,10 @@ function allowlist_add_listener(event) {
     const form_url = allowlist_add_form.elements["add_domain"];
     let url = form_url.value;
     try {
-        url = extractURLHost(url);
+        url = normalizeAllowlistEntry(url);
     } catch(error) {
-        console.warn("Error parsing a domain to add to the allowlist:", {url, error});
-        alert("Please enter a valid domain.");
+        console.warn("Error parsing an allowlist entry:", {url, error});
+        alert("Please enter a valid domain, IP address, or CIDR range.");
         return;
     }
     
@@ -99,7 +99,7 @@ function allowlist_add_listener(event) {
             if (!list.includes(url)) {
                 return list.concat(url);
             } else {
-                alert("This domain is already in the list.");
+                alert("This entry is already in the list.");
                 return list;
             }
         }).then(

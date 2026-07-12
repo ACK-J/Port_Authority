@@ -15,15 +15,16 @@
     <main>
         <section class="panel" aria-labelledby="allowlist-heading">
             <div class="panel-intro">
-                <h2 id="allowlist-heading">Domain Allowlist</h2>
+                <h2 id="allowlist-heading">Allowlist</h2>
                 <p class="panel-copy">
-                    Allowed domains can make local requests and load LexisNexis tracking scripts without being blocked.
+                    Allowed domains, IP addresses, and CIDR ranges can make local requests and load LexisNexis tracking scripts without being blocked.
+                    Domains match the page making the request. IP and CIDR entries also allow connections to those addresses.
                 </p>
             </div>
 
             <form id="allowlist_add_form" class="add-form">
                 <label class="field" for="add_domain">
-                    <span class="field-label">Allow a domain</span>
+                    <span class="field-label">Allow a domain, IP, or CIDR range</span>
                     <input
                         type="text"
                         id="add_domain"
@@ -31,19 +32,19 @@
                         required
                         autocomplete="off"
                         spellcheck="false"
-                        placeholder="discord.com"
+                        placeholder="discord.com, 127.0.0.1, or 192.168.1.0/24"
                         aria-describedby="domain-hint"
                     >
                 </label>
                 <p id="domain-hint" class="field-hint">
-                    Enter a proper domain name, for example <code>discord.com</code>.
+                    Examples: <code>discord.com</code>, <code>127.0.0.1</code>, <code>192.168.1.0/24</code>.
                 </p>
-                <button type="submit" class="primary-button">Add domain</button>
+                <button type="submit" class="primary-button">Add entry</button>
             </form>
         </section>
 
         <section id="allowlist_section" class="panel" hidden>
-            <h2>Allowed Domains</h2>
+            <h2>Allowed Entries</h2>
             <ul id="allowlist_contents" class="selectable domain-list">
                 <!-- Dynamically Populated -->
             </ul>

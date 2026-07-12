@@ -16,9 +16,14 @@ This addon blocks websites from using javascript to port scan your computer/inte
 1. Blocks all possible types of port scanning through your browser (HTTP/HTTPS/WS/WSS/FTP/FTPS)
 2. Dynamically blocks the ThreatMetrix tracking scripts made by one of the largest and least ethical data brokers in the world (Lexis Nexis)
 3. Easily auditable, with the core functionality being about 250 lines of code. [HERE](https://github.com/ACK-J/Port_Authority/blob/main/background.js)
-4. Provides an optional whitelist to prevent portscans and tracking scripts from being blocked on trusted domains
+4. Provides an optional allowlist to prevent portscans and tracking scripts from being blocked on trusted domains, IP addresses, and CIDR ranges
 5. Gives a nice notification when one of the above scenarios are blocked
 6. This addon doesn't store or log browsing history. Blocking decisions stay in memory for the current browser session (badge counters / blocked host lists per tab). To decide whether a third-party host is a LexisNexis/ThreatMetrix endpoint, the addon may issue a DNS CNAME lookup via Firefox's `dns` API for hosts that are not already on the known ThreatMetrix suffix list; results are cached in memory for the session only and are never written to disk or sent to any Port Authority server.
+
+## Allowlist
+- **Domains** (e.g. `discord.com`) match the page origin only — including an optional non-default port when present
+- **IP addresses** (e.g. `127.0.0.1`) without a port match that address on any port for both the page origin and local request destinations
+- **CIDR ranges** (e.g. `192.168.1.0/24`) match any IPv4/IPv6 address in the range, which is useful for homelab UIs such as Proxmox
 
 ## Donations
 - Monero Address: `89jYJvX3CaFNv1T6mhg69wK5dMQJSF3aG2AYRNU1ZSo6WbccGtJN7TNMAf39vrmKNR6zXUKxJVABggR4a8cZDGST11Q4yS8`
@@ -34,10 +39,11 @@ This addon blocks websites from using javascript to port scan your computer/inte
 - Other third-party hosts may still be CNAME-checked once per hostname per session via an in-memory LRU; rebinding-like names skip the cache so a later private answer is not masked
 - Hostname compares strip trailing dots so FQDN forms like `h.online-metrix.net.` still match
 - Transient DNS failures fail open (request allowed) after an explicit catch; known ThreatMetrix suffixes do not depend on DNS and are still blocked
+- Allowlist matching lives in `global/allowlist.js`: domains use exact `URL.host` equality; portless IP entries and CIDR ranges use shared IP helpers from `global/privateAddress.js`
 
 ## Automated Tests
 
-Unit tests cover private-address classification, request-filter decisions (port scans, DNS rebinding, ThreatMetrix CNAMEs, allowlist), storage helpers, notifications/badges, allowlist parsing, DOM helpers, and manifest wiring.
+Unit tests cover private-address classification, request-filter decisions (port scans, DNS rebinding, ThreatMetrix CNAMEs, allowlist including IP/CIDR), storage helpers, notifications/badges, allowlist parsing, DOM helpers, and manifest wiring.
 
 ```bash
 npm test
