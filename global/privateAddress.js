@@ -188,6 +188,12 @@ export function unwrapIpv4MappedAddress(hostname) {
     const bare = normalizeHostname(hostname);
     const hextets = expandIPv6(bare);
     if (!hextets) return bare;
+
+    // :: and ::1 are reserved; they share the deprecated IPv4-compatible
+    // ::/96 prefix but must not unwrap to 0.0.0.0 / 0.0.0.1.
+    if (hextets.every((h) => h === 0)) return bare;
+    if (hextets.every((h, i) => (i === 7 ? h === 1 : h === 0))) return bare;
+
     if (isIpv4MappedHextets(hextets) || isIpv4CompatibleHextets(hextets)) {
         return ipv4FromHextets(hextets[6], hextets[7]);
     }

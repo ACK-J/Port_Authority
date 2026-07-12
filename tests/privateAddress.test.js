@@ -11,6 +11,7 @@ import {
     hostnameSuggestsIpRebinding,
     isUnspecifiedAddress,
     normalizeHostname,
+    unwrapIpv4MappedAddress,
 } from "../global/privateAddress.js";
 import { suite, assert, assertEqual } from "./harness.js";
 
@@ -187,6 +188,17 @@ export async function run() {
     assert(isUnspecifiedAddress("127.0.0.1") === false, "loopback is not unspecified");
     assert(isUnspecifiedAddress("8.8.8.8") === false, "public is not unspecified");
     assert(isUnspecifiedAddress("::1") === false, "loopback v6 is not unspecified");
+
+    suite("unwrapIpv4MappedAddress");
+    assertEqual(unwrapIpv4MappedAddress("::ffff:127.0.0.1"), "127.0.0.1", "dotted mapped loopback");
+    assertEqual(unwrapIpv4MappedAddress("::ffff:7f00:1"), "127.0.0.1", "hex mapped loopback");
+    assertEqual(unwrapIpv4MappedAddress("[::ffff:192.168.1.50]"), "192.168.1.50", "bracketed mapped LAN");
+    assertEqual(unwrapIpv4MappedAddress("::192.168.0.1"), "192.168.0.1", "IPv4-compatible unwrap");
+    assertEqual(unwrapIpv4MappedAddress("::c0a8:1"), "192.168.0.1", "IPv4-compatible hex unwrap");
+    assertEqual(unwrapIpv4MappedAddress("127.0.0.1"), "127.0.0.1", "plain IPv4 unchanged");
+    assertEqual(unwrapIpv4MappedAddress("::1"), "::1", "native IPv6 loopback unchanged");
+    assertEqual(unwrapIpv4MappedAddress("::"), "::", "unspecified IPv6 unchanged");
+    assertEqual(unwrapIpv4MappedAddress("example.com"), "example.com", "domain unchanged");
 
     suite("normalizeHostname");
     assertEqual(normalizeHostname("Example.COM."), "example.com", "strips trailing dots + lowercases");

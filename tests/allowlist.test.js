@@ -150,4 +150,29 @@ export async function run() {
         requestMatchesAllowlist("192.168.1.50:8006", "192.168.1.50:8008", ["192.168.1.0/24"]) === true,
         "CIDR matches Proxmox origin"
     );
+
+    suite("review-fix regressions");
+    // Bug: any '/' was treated as CIDR and rejected valid URLs/paths
+    assertEqual(normalizeAllowlistEntry("https://discord.com/invite/x"), "discord.com", "URL with path not rejected as CIDR");
+    assertEqual(normalizeAllowlistEntry("http://127.0.0.1:8080/status"), "127.0.0.1:8080", "IP URL with path extracts host:port");
+    // Bug: scheme-prefixed / trailing-slash CIDR silently truncated to bare IP
+    assertEqual(normalizeAllowlistEntry("http://192.168.1.0/24"), "192.168.1.0/24", "scheme CIDR keeps prefix");
+    assertEqual(normalizeAllowlistEntry("192.168.1.0/24/"), "192.168.1.0/24", "trailing slash CIDR keeps prefix");
+    assert(normalizeAllowlistEntry("http://192.168.1.0/24") !== "192.168.1.0", "scheme CIDR is not truncated to host");
+    // Bug: IPv4-mapped literals did not match IPv4/CIDR allowlist entries
+    assert(ipInCIDR("::ffff:192.168.1.50", "192.168.1.0/24") === true, "mapped IPv6 in IPv4 CIDR");
+    assert(ipInCIDR("[::ffff:7f00:1]", "127.0.0.0/8") === true, "mapped hex loopback in 127/8");
+    assert(
+        requestMatchesAllowlist("evil.example", "[::ffff:127.0.0.1]:80", ["127.0.0.1"]) === true,
+        "mapped loopback destination matches IPv4 allowlist"
+    );
+    // Bug: portless IPv6 must not rely on host===hostname (bracket differences)
+    assert(isIPOrCIDREntry("[::1]") === true, "bracketed IPv6 is portless IP entry");
+    assert(isIPOrCIDREntry("[::1]:8080") === false, "IPv6 with port is not a destination wildcard entry");
+    assert(hostMatchesAllowlistEntry("[::1]:65535", "[::1]") === true, "IPv6 portless matches high port");
+    // Bug: ::1 must not unwrap to 0.0.0.1 via deprecated IPv4-compatible ::/96
+    assert(hostMatchesAllowlistEntry("0.0.0.1:80", "[::1]") === false, "::1 allowlist must not match 0.0.0.1");
+    assert(hostMatchesAllowlistEntry("[::1]:80", "0.0.0.1") === false, "0.0.0.1 allowlist must not match ::1");
+    assert(ipInCIDR("::1", "0.0.0.0/8") === false, "::1 is not in 0.0.0.0/8 via false unwrap");
+    assert(hostMatchesAllowlistEntry("[::1]:8080", "[::1]") === true, "::1 still matches itself on any port");
 }
