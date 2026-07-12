@@ -6,6 +6,7 @@ import {
     normalizeHostname,
     parseIPv4Octets,
     expandIPv6,
+    unwrapIpv4MappedAddress,
 } from "./privateAddress.js";
 
 /**
@@ -95,9 +96,10 @@ export function normalizeAllowlistEntry(input) {
         throw new Error("empty allowlist entry");
     }
 
-    // CIDR must be accepted before URL parsing — otherwise `192.168.1.0/24`
-    // becomes host `192.168.1.0` with path `/24`.
-    if (input.includes("/")) {
+    // Only treat slash-containing input as CIDR when the network side is an IP.
+    // Full URLs (`https://example.com/path`) and bare hosts with paths
+    // (`discord.com/invite`) must still go through extractURLHost.
+    if (looksLikeCidrAttempt(input)) {
         if (!isCIDRAllowlistEntry(input)) {
             throw new Error("invalid CIDR notation");
         }
@@ -112,12 +114,29 @@ export function normalizeAllowlistEntry(input) {
 }
 
 /**
- * Treat `localhost` as loopback for IP allowlist comparisons.
+ * True when input looks like `IP/prefix` rather than a URL or host/path.
+ * @param {string} input
+ */
+function looksLikeCidrAttempt(input) {
+    if (!input.includes("/")) return false;
+    // Scheme-bearing URLs are never CIDR entries.
+    if (/^\w+:\/\//.test(input)) return false;
+
+    const slashIndex = input.lastIndexOf("/");
+    if (slashIndex <= 0 || slashIndex === input.length - 1) return false;
+
+    const bareNetwork = normalizeHostname(input.slice(0, slashIndex));
+    if (parseIPv4Octets(bareNetwork)) return true;
+    return bareNetwork.includes(":") && expandIPv6(bareNetwork) !== null;
+}
+
+/**
+ * Canonical hostname for IP allowlist compares: unwrap mapped IPv6, map localhost → 127.0.0.1.
  * @param {string} hostname
  */
-function normalizeLoopbackHostname(hostname) {
-    const bare = normalizeHostname(hostname);
-    return bare === "localhost" ? "127.0.0.1" : bare;
+function canonicalizeAllowlistHostname(hostname) {
+    const unwrapped = unwrapIpv4MappedAddress(hostname);
+    return unwrapped === "localhost" ? "127.0.0.1" : unwrapped;
 }
 
 function hostnameFromHost(host) {
@@ -151,7 +170,7 @@ function ipv6ToBigInt(ip) {
  * @param {string} cidr e.g. `192.168.1.0/24` or `fe80::/10`
  */
 export function ipInCIDR(ip, cidr) {
-    const bareIp = normalizeHostname(ip);
+    const bareIp = canonicalizeAllowlistHostname(ip);
     const slashIndex = cidr.lastIndexOf("/");
     if (slashIndex <= 0) return false;
 
@@ -193,7 +212,7 @@ export function hostMatchesAllowlistEntry(host, allowlistEntry) {
     }
 
     if (isCIDRAllowlistEntry(allowlistEntry)) {
-        const hostname = normalizeLoopbackHostname(hostnameFromHost(host));
+        const hostname = canonicalizeAllowlistHostname(hostnameFromHost(host));
         return ipInCIDR(hostname, allowlistEntry);
     }
 
@@ -206,8 +225,8 @@ export function hostMatchesAllowlistEntry(host, allowlistEntry) {
         return false;
     }
 
-    const hostHostname = normalizeLoopbackHostname(hostUrl.hostname);
-    const entryHostname = normalizeLoopbackHostname(entryUrl.hostname);
+    const hostHostname = canonicalizeAllowlistHostname(hostUrl.hostname);
+    const entryHostname = canonicalizeAllowlistHostname(entryUrl.hostname);
 
     // Portless IP entry: match the same address on any port.
     if (entryUrl.host === entryUrl.hostname && isLiteralIpHostname(entryUrl.hostname)) {

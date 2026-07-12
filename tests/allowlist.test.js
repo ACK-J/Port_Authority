@@ -36,6 +36,10 @@ export async function run() {
 
     suite("normalizeAllowlistEntry domains and IPs");
     assertEqual(normalizeAllowlistEntry("discord.com"), "discord.com", "domain");
+    assertEqual(normalizeAllowlistEntry("https://example.com"), "example.com", "full URL with scheme");
+    assertEqual(normalizeAllowlistEntry("https://example.com/path"), "example.com", "full URL with path");
+    assertEqual(normalizeAllowlistEntry("discord.com/invite/abc"), "discord.com", "bare host with path");
+    assertEqual(normalizeAllowlistEntry("http://127.0.0.1:3000/"), "127.0.0.1:3000", "IP URL with port and trailing slash");
     assertEqual(normalizeAllowlistEntry("127.0.0.1"), "127.0.0.1", "IPv4");
     assertEqual(normalizeAllowlistEntry("127.0.0.1:8080"), "127.0.0.1:8080", "IPv4 with port");
     assertEqual(normalizeAllowlistEntry("::1"), "[::1]", "IPv6");
@@ -43,10 +47,12 @@ export async function run() {
     assertEqual(normalizeAllowlistEntry("10.0.0.0/8"), "10.0.0.0/8", "IPv4 /8 CIDR");
     assertEqual(normalizeAllowlistEntry("fe80::/10"), "fe80::/10", "IPv6 CIDR");
     assertEqual(normalizeAllowlistEntry("[fe80::]/10"), "fe80::/10", "bracketed IPv6 CIDR normalized");
+    assertEqual(normalizeAllowlistEntry("example.com/24"), "example.com", "domain with path-like slash is not CIDR");
+    assertEqual(normalizeAllowlistEntry("not-a-cidr/24"), "not-a-cidr", "non-IP slash is treated as host/path");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("")), "empty throws");
     await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("192.168.1.0/33")), "bad IPv4 prefix throws");
-    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("not-a-cidr/24")), "non-IP CIDR throws");
-    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("example.com/24")), "domain CIDR throws");
+    await assertRejects(() => Promise.resolve(normalizeAllowlistEntry("fe80::/129")), "bad IPv6 prefix throws");
+
 
     suite("isCIDRAllowlistEntry / isIPOrCIDREntry");
     assert(isCIDRAllowlistEntry("192.168.1.0/24") === true, "IPv4 CIDR");
@@ -94,6 +100,9 @@ export async function run() {
     assert(isHostAllowlisted("localhost:3000", ["127.0.0.1"]) === true, "localhost matches 127.0.0.1 entry");
     assert(isHostAllowlisted("127.0.0.1:3000", ["localhost"]) === false, "localhost entry is domain-exact (no port wildcard)");
     assert(hostMatchesAllowlistEntry("[::1]:8080", "[::1]") === true, "portless IPv6 matches any port");
+    assert(hostMatchesAllowlistEntry("[::ffff:127.0.0.1]:80", "127.0.0.1") === true, "IPv4-mapped loopback matches 127.0.0.1");
+    assert(hostMatchesAllowlistEntry("[::ffff:7f00:1]:80", "127.0.0.1") === true, "IPv4-mapped hex loopback matches 127.0.0.1");
+    assert(isHostAllowlisted("[::ffff:192.168.1.50]:8006", ["192.168.1.0/24"]) === true, "IPv4-mapped address matches IPv4 CIDR");
 
     suite("isHostAllowlisted CIDR matching (issue #64)");
     assert(isHostAllowlisted("192.168.1.50:8006", ["192.168.1.0/24"]) === true, "Proxmox-like origin in /24");

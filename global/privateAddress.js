@@ -179,6 +179,22 @@ export function isLiteralIpHostname(hostname) {
 }
 
 /**
+ * If `hostname` is an IPv4-mapped or IPv4-compatible IPv6 literal, return the
+ * embedded dotted IPv4 address. Otherwise return the normalized hostname.
+ * @param {string} hostname
+ * @returns {string}
+ */
+export function unwrapIpv4MappedAddress(hostname) {
+    const bare = normalizeHostname(hostname);
+    const hextets = expandIPv6(bare);
+    if (!hextets) return bare;
+    if (isIpv4MappedHextets(hextets) || isIpv4CompatibleHextets(hextets)) {
+        return ipv4FromHextets(hextets[6], hextets[7]);
+    }
+    return bare;
+}
+
+/**
  * Returns true when `url` targets a local/private address over a supported protocol.
  * Alternate IPv4 encodings (integer/hex/octal/short-form) are normalized by the
  * URL parser into dotted-decimal before this check runs.
