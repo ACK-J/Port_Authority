@@ -8,6 +8,7 @@ export async function run() {
     const created = [];
     const badgeUpdates = [];
     const tabQueries = [];
+    const windowsCreated = [];
 
     globalThis.browser = {
         notifications: {
@@ -26,6 +27,12 @@ export async function run() {
             query: async (q) => {
                 tabQueries.push(q);
                 return [{ id: 42, url: "https://active.example/" }];
+            },
+        },
+        windows: {
+            create: async (details) => {
+                windowsCreated.push(details);
+                return { id: 1, ...details };
             },
         },
     };
@@ -90,5 +97,35 @@ export async function run() {
         globalThis.browser.tabs.query = async () => [];
         const id = await actions.getActiveTabId();
         assertEqual(id, undefined, "no active tab returns undefined");
+    }
+
+    suite("openSelectiveAllowPopup");
+    {
+        windowsCreated.length = 0;
+        await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/app",
+            9
+        );
+        assertEqual(windowsCreated.length, 1, "popup window created");
+        assertEqual(windowsCreated[0].type, "popup", "window type popup");
+        const url = new URL(windowsCreated[0].url);
+        assert(url.pathname.endsWith("selectiveAllow/selectiveAllow.html"), "popup path");
+        assertEqual(url.searchParams.get("origin"), "github.com", "origin query");
+        assertEqual(url.searchParams.get("destination"), "localhost:8080", "destination query");
+        assertEqual(url.searchParams.get("originalUrl"), "http://localhost:8080/app", "originalUrl query");
+        assertEqual(url.searchParams.get("tabId"), "9", "tabId query");
+    }
+    {
+        windowsCreated.length = 0;
+        await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/",
+            1,
+            "../evil.html"
+        );
+        assertEqual(windowsCreated.length, 0, "unsafe page does not open a window");
     }
 }

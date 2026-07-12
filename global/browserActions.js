@@ -1,3 +1,5 @@
+import { sanitizeSelectiveAllowPage } from "./selectiveAllow.js";
+
 async function notify(id, title, message) {
     return browser.notifications.create(id, {
         type: "basic",
@@ -48,4 +50,39 @@ export async function getActiveTabId() {
         active: true,
     });
     return tabs[0]?.id;
+}
+
+/**
+ * Opens a Selective Allow decision popup.
+ * @param {string} origin Host of the page that initiated the request
+ * @param {string} destination Host:port being navigated to
+ * @param {string} originalUrl Full URL the user was trying to reach
+ * @param {number} [tabId] Tab whose navigation was cancelled (for reuse on allow)
+ * @param {string} [page="selectiveAllow.html"] Page under selectiveAllow/
+ * @returns {Promise<browser.windows.Window|undefined>}
+ */
+export async function openSelectiveAllowPopup(
+    origin,
+    destination,
+    originalUrl,
+    tabId,
+    page = "selectiveAllow.html"
+) {
+    const safePage = sanitizeSelectiveAllowPage(page);
+    if (!safePage) {
+        console.error("Refusing to open selective allow popup with unsafe page:", page);
+        return;
+    }
+
+    const params = new URLSearchParams({ origin, destination, originalUrl });
+    if (Number.isInteger(tabId) && tabId >= 0) {
+        params.set("tabId", String(tabId));
+    }
+
+    return browser.windows.create({
+        url: browser.runtime.getURL(`selectiveAllow/${safePage}?${params}`),
+        type: "popup",
+        width: 500,
+        height: 280,
+    });
 }
