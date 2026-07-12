@@ -110,3 +110,63 @@ function allowlist_add_listener(event) {
 allowlist_add_form.addEventListener("submit", allowlist_add_listener);
 
 load_allowlist();
+
+// Populate `#cross_origin_section` — persisted Selective Allow pairs
+let cross_origin_remove_controller;
+const cross_origin_wrapper = document.getElementById("cross_origin_section");
+const cross_origin_contents = document.getElementById("cross_origin_contents");
+
+function cross_origin_item(entry, abort_signal) {
+    /** Removes this entry from storage and refreshes the display */
+    const remove_listener = () => {
+        modifyItemInLocal("cross_origin_allowlist", [],
+            (list) => list.filter(
+                (e) => !(e.origin === entry.origin && e.destination === entry.destination)
+            )
+        ).then((list) => load_cross_origin_list(list));
+    };
+
+    const label = `${entry.origin} → ${entry.destination}`;
+    const item = createElement("li", {}, [
+        createElement("span", { class: "domain" }, label),
+        createElement("button", {
+            class: "unselectable",
+            "aria-label": `Remove permission for ${label}`,
+        }, "✕"),
+    ]);
+
+    item.querySelector("button").addEventListener("click", remove_listener, {
+        signal: abort_signal,
+    });
+    return item;
+}
+
+async function load_cross_origin_list(list) {
+    // Drop prior remove-button listeners before rebuilding the list.
+    if (cross_origin_remove_controller) cross_origin_remove_controller.abort();
+    cross_origin_remove_controller = new AbortController();
+
+    // If not provided, fetch the cross-origin allowlist from storage
+    list ??= await getItemFromLocal("cross_origin_allowlist", []);
+
+    // Clear stale contents, if any
+    cross_origin_contents.replaceChildren();
+
+    // Early return, hiding wrapper if no data provided
+    if (!list || list.length === 0) {
+        cross_origin_wrapper.setAttribute("hidden", "");
+        return;
+    }
+
+    // Populate the list items
+    for (const entry of list) {
+        cross_origin_contents.appendChild(
+            cross_origin_item(entry, cross_origin_remove_controller.signal)
+        );
+    }
+
+    // Unhide the container wrapper at end
+    cross_origin_wrapper.removeAttribute("hidden");
+}
+
+load_cross_origin_list();

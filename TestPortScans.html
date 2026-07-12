@@ -140,6 +140,36 @@
             <a id="plugin-button" href="https://addons.mozilla.org/firefox/addon/port-authority/">
                 <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Port Authority addon for Firefox" height="60px">
             </a>
+
+            <h2>Selective Allow (cross-origin local navigation)</h2>
+            <p>
+                Port Authority blocks top-level navigations from other sites to local addresses, then opens a
+                <strong>separate decision window</strong> (plus a notification) with Block / Allow Once / Always Allow.
+                That window is <em>not</em> the toolbar popup.
+            </p>
+            <p>
+                Requirements to see it:
+            </p>
+            <ul>
+                <li>Load this temporary add-on build (or a release that includes Selective Allow).</li>
+                <li>Open <em>this HTML page</em> from a host that is not the local target — e.g. serve it from
+                    another machine, or open the raw file via a non-local site. Opening it as
+                    <code>http://localhost/…</code> and then linking to <code>http://localhost:8080/</code> can
+                    still work (different port), but linking from the same local host:port will not prompt.</li>
+                <li>Click one of the full-page links below (not the port-scan button).</li>
+            </ul>
+            <p>
+                <a href="http://localhost:8080/" target="_blank" rel="noopener">Open http://localhost:8080/ (new tab)</a>
+            </p>
+            <p>
+                Same-tab variant:
+                <a href="http://127.0.0.1:8080/">Open http://127.0.0.1:8080/</a>
+            </p>
+            <p>
+                Subresource scans from the button above stay silently blocked; only these full-page navigations
+                should show the Selective Allow prompt.
+            </p>
+
             <h2 id="results-label" hidden>
                 Requests Made:
             </h2>

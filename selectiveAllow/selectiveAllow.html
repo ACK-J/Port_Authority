@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="color-scheme" content="light dark">
+    <title>Port Authority — Access Request</title>
+    <link rel="stylesheet" type="text/css" href="../global/common.css">
+    <link rel="stylesheet" type="text/css" href="./selectiveAllow.css">
+</head>
+<body class="flex-column">
+    <header class="flex-row red-bg">
+        <img src="../icons/logo-32.png" width="32" height="32" alt="Port Authority Logo">
+        <h1>Port Authority</h1>
+    </header>
+    <main class="flex-column">
+        <p id="prompt-text">A page on the internet wants to navigate to a local address.</p>
+        <dl id="request-details">
+            <dt>From</dt>
+            <dd id="detail-origin">—</dd>
+            <dt>To</dt>
+            <dd id="detail-destination">—</dd>
+            <dt>Protocol</dt>
+            <dd id="detail-protocol">—</dd>
+        </dl>
+        <div id="action-row" class="flex-row">
+            <button type="button" id="btn-block">Block</button>
+            <button type="button" id="btn-allow-once">Allow Once</button>
+            <button type="button" id="btn-always-allow">Always Allow</button>
+        </div>
+    </main>
+    <script type="module" src="./localRequestSelectiveAllow.js"></script>
+</body>
+</html>

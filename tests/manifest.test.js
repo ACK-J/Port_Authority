@@ -50,6 +50,16 @@ export async function run() {
     assert(background.includes("onRemoved"), "cleans up tab activity on tab close");
     assert(background.includes("resetSessionTabActivity"), "resets stale session activity on startup");
     assert(background.includes("getAllowedDomainListCached"), "uses cached allowlist on hot path");
+    assert(background.includes("handleSelectiveAllowNavigation"), "selective allow for main_frame locals");
+    assert(background.includes("validatePendingAllow"), "validates allow Once/Always against pending");
+    assert(background.includes("allowOnce"), "handles allowOnce messages");
+    assert(background.includes("alwaysAllow"), "handles alwaysAllow messages");
+    assert(background.includes("clearPendingByWindowId"), "clears pending when prompt window closes");
+    assert(background.includes("windows.onRemoved"), "listens for prompt window close");
+    assert(background.includes("originAllowKey"), "uses stable origin keys including file paths");
+    assert(background.includes("ensurePendingPrompt"), "atomic pending create-or-update");
+    assert(background.includes("revokeSessionAllow"), "can revoke session allows");
+    assert(background.includes("syncSessionAllowsWithCrossOriginChange"), "settings removal syncs session");
 
     suite("requestFilter.js ThreatMetrix remediation surface");
     const requestFilter = readText("global/requestFilter.js");
@@ -72,17 +82,22 @@ export async function run() {
     const settings = readText("settings/settings.js");
     assert(settings.includes('from "../global/allowlist.js"'), "imports allowlist module");
     assert(settings.includes("normalizeAllowlistEntry"), "uses normalizeAllowlistEntry");
+    assert(settings.includes("cross_origin_allowlist"), "manages selective allow permissions");
+    assert(settings.includes("load_cross_origin_list"), "renders cross-origin allowlist");
 
     suite("core modules exist");
     for (const path of [
         "global/privateAddress.js",
         "global/requestFilter.js",
         "global/allowlist.js",
+        "global/selectiveAllow.js",
         "global/BrowserStorageManager.js",
         "global/tabActivity.js",
         "global/browserActions.js",
         "global/constants.js",
         "global/domUtils.js",
+        "selectiveAllow/selectiveAllow.html",
+        "selectiveAllow/localRequestSelectiveAllow.js",
         "popup/PopupUI.js",
         "popup/switch.js",
         "TestPortScans.html",

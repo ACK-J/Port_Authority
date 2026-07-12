@@ -24,6 +24,20 @@ export async function notifyThreatMetrix(domain_name) {
 }
 
 /**
+ * Heads-up that a Selective Allow decision window/tab was opened.
+ * @param {string} origin
+ * @param {string} destination
+ */
+export async function notifySelectiveAllow(origin, destination) {
+    const from = origin || "this page";
+    return notify(
+        "selective-allow-notification",
+        "Local Navigation Blocked",
+        `Port Authority blocked ${from} from opening ${destination}. Choose Block, Allow Once, or Always Allow in the prompt.`
+    );
+}
+
+/**
  * Updates the extension button's badge text on the relevant tab.
  * @param {string|number} text
  * @param {number|string} tabId
@@ -48,4 +62,58 @@ export async function getActiveTabId() {
         active: true,
     });
     return tabs[0]?.id;
+}
+
+/**
+ * Build the Selective Allow decision page URL.
+ * @param {string} origin
+ * @param {string} destination
+ * @param {string} originalUrl Display-only; authority is promptId + pending record
+ * @param {string} promptId
+ * @returns {string}
+ */
+export function buildSelectiveAllowUrl(origin, destination, originalUrl, promptId) {
+    const params = new URLSearchParams({ origin, destination, originalUrl, promptId });
+    return browser.runtime.getURL(`selectiveAllow/selectiveAllow.html?${params}`);
+}
+
+/**
+ * Opens a Selective Allow decision UI.
+ * Prefers a popup window; falls back to a tab if the window cannot open.
+ *
+ * @param {string} origin
+ * @param {string} destination
+ * @param {string} originalUrl
+ * @param {string} promptId
+ * @returns {Promise<{ mode: "window"|"tab", id: number }|undefined>}
+ */
+export async function openSelectiveAllowPopup(origin, destination, originalUrl, promptId) {
+    const url = buildSelectiveAllowUrl(origin, destination, originalUrl, promptId);
+
+    try {
+        const win = await browser.windows.create({
+            url,
+            type: "popup",
+            width: 520,
+            height: 320,
+            allowScriptsToClose: true,
+            focused: true,
+        });
+        if (Number.isInteger(win?.id) && win.id >= 0) {
+            return { mode: "window", id: win.id };
+        }
+    } catch (windowError) {
+        console.warn("Selective allow popup window failed; opening a tab instead:", windowError);
+    }
+
+    try {
+        const tab = await browser.tabs.create({ url, active: true });
+        if (Number.isInteger(tab?.id) && tab.id >= 0) {
+            return { mode: "tab", id: tab.id };
+        }
+    } catch (tabError) {
+        console.error("Selective allow fallback tab failed:", tabError);
+    }
+
+    return undefined;
 }

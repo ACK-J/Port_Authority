@@ -8,6 +8,8 @@ export async function run() {
     const created = [];
     const badgeUpdates = [];
     const tabQueries = [];
+    const windowsCreated = [];
+    const tabsCreated = [];
 
     globalThis.browser = {
         notifications: {
@@ -26,6 +28,16 @@ export async function run() {
             query: async (q) => {
                 tabQueries.push(q);
                 return [{ id: 42, url: "https://active.example/" }];
+            },
+            create: async (details) => {
+                tabsCreated.push(details);
+                return { id: 99, ...details };
+            },
+        },
+        windows: {
+            create: async (details) => {
+                windowsCreated.push(details);
+                return { id: 1, ...details };
             },
         },
     };
@@ -63,6 +75,15 @@ export async function run() {
         assert(created[0].message.includes("hidden LexisNexis endpoint"), "fallback tmx message");
     }
 
+    suite("notifySelectiveAllow");
+    {
+        created.length = 0;
+        await actions.notifySelectiveAllow("github.com", "localhost:8080");
+        assertEqual(created[0].id, "selective-allow-notification", "selective allow id");
+        assert(created[0].message.includes("github.com"), "origin in message");
+        assert(created[0].message.includes("localhost:8080"), "destination in message");
+    }
+
     suite("updateBadges");
     {
         badgeUpdates.length = 0;
@@ -90,5 +111,59 @@ export async function run() {
         globalThis.browser.tabs.query = async () => [];
         const id = await actions.getActiveTabId();
         assertEqual(id, undefined, "no active tab returns undefined");
+    }
+
+    suite("openSelectiveAllowPopup");
+    {
+        windowsCreated.length = 0;
+        tabsCreated.length = 0;
+        const result = await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/app",
+            "prompt-abc"
+        );
+        assertEqual(windowsCreated.length, 1, "popup window created");
+        assertEqual(result?.mode, "window", "reports window mode");
+        assertEqual(result?.id, 1, "returns window id");
+        const url = new URL(windowsCreated[0].url);
+        assert(url.pathname.endsWith("selectiveAllow/selectiveAllow.html"), "popup path");
+        assertEqual(url.searchParams.get("promptId"), "prompt-abc", "promptId query");
+        assertEqual(url.searchParams.get("tabId"), null, "tabId not in query");
+        assertEqual(url.searchParams.get("origin"), "github.com", "origin display query");
+    }
+    {
+        windowsCreated.length = 0;
+        tabsCreated.length = 0;
+        globalThis.browser.windows.create = async () => {
+            throw new Error("window blocked");
+        };
+        const result = await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/",
+            "prompt-y"
+        );
+        assertEqual(result?.mode, "tab", "falls back to tab mode");
+        assertEqual(result?.id, 99, "returns tab id");
+        assertEqual(tabsCreated.length, 1, "fallback tab created");
+        assert(tabsCreated[0].url.includes("promptId=prompt-y"), "fallback includes promptId");
+    }
+    {
+        windowsCreated.length = 0;
+        tabsCreated.length = 0;
+        globalThis.browser.windows.create = async () => ({ id: undefined });
+        globalThis.browser.tabs.create = async (details) => {
+            tabsCreated.push(details);
+            return { id: 77, ...details };
+        };
+        const result = await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/",
+            "prompt-z"
+        );
+        assertEqual(result?.mode, "tab", "falls back when window id missing");
+        assertEqual(result?.id, 77, "uses fallback tab id");
     }
 }
