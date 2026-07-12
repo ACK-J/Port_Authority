@@ -98,39 +98,44 @@ export function normalizeAllowlistEntry(input) {
         throw new Error("empty allowlist entry");
     }
 
-    // Allow paste mistakes like `http://192.168.1.0/24` or `192.168.1.0/24/`.
-    // Strip scheme + trailing slashes only for the CIDR candidate check so
-    // normal URLs/paths still fall through to extractURLHost.
-    const cidrCandidate = input.replace(/^\w+:\/\//, "").replace(/\/+$/, "");
-    if (looksLikeCidrAttempt(cidrCandidate)) {
-        if (!isCIDRAllowlistEntry(cidrCandidate)) {
-            throw new Error("invalid CIDR notation");
-        }
-        const slashIndex = cidrCandidate.lastIndexOf("/");
-        const network = normalizeHostname(cidrCandidate.slice(0, slashIndex));
-        const prefix = cidrCandidate.slice(slashIndex + 1);
-        // Store IPv6 networks without brackets for stable compares.
-        return `${network}/${prefix}`;
+    // Prefer a leading IP/prefix even when the paste includes a scheme or
+    // trailing path (e.g. `http://192.168.1.0/24/dashboard`).
+    const leadingCidr = extractLeadingCidr(input);
+    if (leadingCidr) {
+        return leadingCidr;
     }
 
     return extractURLHost(input);
 }
 
 /**
- * True when input looks like `IP/prefix` rather than a URL or host/path.
+ * If `input` begins with a valid CIDR (optionally after a URL scheme, and
+ * optionally followed by more path), return the normalized `network/prefix`.
+ * Throws when the leading network is an IP but the prefix is invalid.
  * @param {string} input
+ * @returns {string|null}
  */
-function looksLikeCidrAttempt(input) {
-    if (!input.includes("/")) return false;
-    // Scheme-bearing URLs are never CIDR entries.
-    if (/^\w+:\/\//.test(input)) return false;
+function extractLeadingCidr(input) {
+    const withoutScheme = input.replace(/^\w+:\/\//, "").replace(/\/+$/, "");
+    const slashIndex = withoutScheme.indexOf("/");
+    if (slashIndex <= 0) return null;
 
-    const slashIndex = input.lastIndexOf("/");
-    if (slashIndex <= 0 || slashIndex === input.length - 1) return false;
+    const network = withoutScheme.slice(0, slashIndex);
+    const rest = withoutScheme.slice(slashIndex + 1);
+    const prefixMatch = rest.match(/^(\d+)/);
+    if (!prefixMatch) return null;
 
-    const bareNetwork = normalizeHostname(input.slice(0, slashIndex));
-    if (parseIPv4Octets(bareNetwork)) return true;
-    return bareNetwork.includes(":") && expandIPv6(bareNetwork) !== null;
+    const bareNetwork = normalizeHostname(network);
+    const isIpNetwork =
+        parseIPv4Octets(bareNetwork) !== null ||
+        (bareNetwork.includes(":") && expandIPv6(bareNetwork) !== null);
+    if (!isIpNetwork) return null;
+
+    const candidate = `${bareNetwork}/${prefixMatch[1]}`;
+    if (!isCIDRAllowlistEntry(candidate)) {
+        throw new Error("invalid CIDR notation");
+    }
+    return candidate;
 }
 
 /**
