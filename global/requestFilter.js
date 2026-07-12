@@ -2,7 +2,7 @@
  * Decision logic for whether a request should be blocked.
  * Kept free of badge/notification/storage side effects so it can be unit tested.
  */
-import { requestMatchesAllowlist } from "./allowlist.js";
+import { requestMatchesAllowlist, isCompiledAllowlist, compileAllowlist } from "./allowlist.js";
 import {
     isLocalRequestUrl,
     isLiteralIpHostname,
@@ -27,10 +27,11 @@ export const THREATMETRIX_SUFFIXES = Object.freeze([
 /**
  * True when hostname is one of {@link THREATMETRIX_SUFFIXES} or a subdomain thereof.
  * @param {string} hostname
+ * @param {string} [normalizedHostname] Optional precomputed {@link normalizeHostname} result
  * @returns {boolean}
  */
-export function matchesThreatMetrixHost(hostname) {
-    const host = normalizeHostname(hostname);
+export function matchesThreatMetrixHost(hostname, normalizedHostname) {
+    const host = normalizedHostname ?? normalizeHostname(hostname);
     if (!host) return false;
 
     for (const suffix of THREATMETRIX_SUFFIXES) {
@@ -113,7 +114,8 @@ export function createDnsResultCache(maxSize = 256) {
 
 /**
  * @typedef {object} RequestFilterDeps
- * @property {() => Promise<string[]>} getAllowedDomains
+ * @property {() => (string[]|import("./allowlist.js").CompiledAllowlist)|Promise<string[]|import("./allowlist.js").CompiledAllowlist>} [getAllowedDomains]
+ * @property {string[]|import("./allowlist.js").CompiledAllowlist} [allowedDomains] Sync allowlist when already available
  * @property {(hostname: string) => Promise<DnsResolveResult>} resolveDns
  * @property {{
  *   get: (key: string) => DnsResolveResult | undefined,
@@ -136,6 +138,17 @@ export function createDnsResultCache(maxSize = 256) {
  * @property {true} cancel
  * @property {"portscan" | "threatmetrix"} reason
  * @property {URL} url
+ * @property {string} [originHost]
+ */
+
+/**
+ * @typedef {object} FilterNeedsDns
+ * @property {"needs-dns"} phase
+ * @property {URL} url
+ * @property {URL} originUrl
+ * @property {string} requestHost
+ * @property {boolean} isThirdParty
+ * @property {boolean} needsRebindingCheck
  */
 
 /**
@@ -207,6 +220,122 @@ async function resolveWithOptionalCache(hostname, deps, skipCache) {
 }
 
 /**
+ * @param {string[]|import("./allowlist.js").CompiledAllowlist|null|undefined} allowedDomains
+ */
+function asCompiledAllowlist(allowedDomains) {
+    if (isCompiledAllowlist(allowedDomains)) return allowedDomains;
+    return compileAllowlist(Array.isArray(allowedDomains) ? allowedDomains : []);
+}
+
+/**
+ * Synchronous pre-DNS evaluation. Returns a final decision or `{ phase: "needs-dns" }`.
+ *
+ * @param {{
+ *   thirdParty?: boolean,
+ *   originUrl?: string,
+ *   url: string,
+ * }} requestDetails
+ * @param {string[]|import("./allowlist.js").CompiledAllowlist} allowedDomains
+ * @returns {FilterAllow | FilterBlock | FilterNeedsDns}
+ */
+export function evaluateRequestSync(requestDetails, allowedDomains) {
+    const isThirdParty = Boolean(requestDetails.thirdParty);
+    const compiled = asCompiledAllowlist(allowedDomains);
+
+    let originUrl;
+    try {
+        originUrl = new URL(requestDetails.originUrl);
+    } catch {
+        return { cancel: false, reason: "unparseable-origin" };
+    }
+
+    let url;
+    try {
+        url = new URL(requestDetails.url);
+    } catch {
+        return { cancel: false, reason: "unparseable-url" };
+    }
+
+    // Domains match the page origin only. IP/CIDR entries also match destinations
+    // so allowlisting 127.0.0.1 works for scans from file:// or other pages.
+    if (requestMatchesAllowlist(originUrl.host, url.host, compiled)) {
+        return { cancel: false, reason: "allowlisted" };
+    }
+
+    const requestHost = normalizeHostname(url.hostname);
+    const originHost = normalizeHostname(originUrl.hostname);
+    const sameHost = requestHost === originHost;
+
+    // Same-host first-party resources (page's own assets): allow without DNS.
+    if (!isThirdParty && sameHost) {
+        return { cancel: false, reason: "first-party" };
+    }
+
+    // Port-scan / private-address checks only for third-party requests.
+    if (isThirdParty) {
+        if (isLocalRequestUrl(url, requestHost)) {
+            return { cancel: true, reason: "portscan", url, originHost: originUrl.host };
+        }
+
+        // Literal public (or already-classified) IPs: no DNS follow-up.
+        if (isLiteralIpHostname(requestHost)) {
+            return { cancel: false, reason: "literal-ip" };
+        }
+    } else if (isLiteralIpHostname(requestHost)) {
+        // Same-site but literal IP host — not a TMX hostname path.
+        return { cancel: false, reason: "first-party" };
+    }
+
+    // Known LexisNexis / ThreatMetrix hosts: block without a DNS side-channel.
+    // Applies to first- and third-party (direct infrastructure hits).
+    if (matchesThreatMetrixHost(requestHost, requestHost)) {
+        return { cancel: true, reason: "threatmetrix", url, originHost: originUrl.host };
+    }
+
+    // DNS is needed for rebinding checks and customer-specific TMX CNAMEs.
+    const needsRebindingCheck = isThirdParty && hostnameSuggestsIpRebinding(requestHost, requestHost);
+    return {
+        phase: "needs-dns",
+        url,
+        originUrl,
+        requestHost,
+        isThirdParty,
+        needsRebindingCheck,
+    };
+}
+
+/**
+ * Finish evaluation after a DNS resolve for a {@link evaluateRequestSync} needs-dns result.
+ * @param {FilterNeedsDns} pending
+ * @param {{ ok: true, resolving: DnsResolveResult } | { ok: false }} resolved
+ * @returns {FilterAllow | FilterBlock}
+ */
+export function finishEvaluateRequestWithDns(pending, resolved) {
+    if (!resolved.ok) {
+        // Explicit fail-open: a resolver outage must not break browsing.
+        // Known ThreatMetrix suffixes are already handled without DNS above.
+        return { cancel: false, reason: "dns-failure" };
+    }
+    const { resolving } = resolved;
+    const { url, requestHost, isThirdParty, needsRebindingCheck, originUrl } = pending;
+
+    if (needsRebindingCheck) {
+        for (const address of resolving.addresses ?? []) {
+            if (isUnspecifiedAddress(address)) continue;
+            if (isPrivateAddress(address)) {
+                return { cancel: true, reason: "portscan", url, originHost: originUrl.host };
+            }
+        }
+    }
+
+    if (matchesThreatMetrixHost(resolving.canonicalName ?? "")) {
+        return { cancel: true, reason: "threatmetrix", url, originHost: originUrl.host };
+    }
+
+    return { cancel: false, reason: isThirdParty ? "clean" : "first-party" };
+}
+
+/**
  * Evaluate a webRequest-like detail object and decide whether to cancel it.
  *
  * Port-scan filtering applies to third-party requests only. ThreatMetrix
@@ -223,85 +352,35 @@ async function resolveWithOptionalCache(hostname, deps, skipCache) {
  * @returns {Promise<FilterAllow | FilterBlock>}
  */
 export async function evaluateRequest(requestDetails, deps) {
-    const { getAllowedDomains } = deps;
-    const isThirdParty = Boolean(requestDetails.thirdParty);
+    const allowedDomains =
+        deps.allowedDomains !== undefined
+            ? deps.allowedDomains
+            : await deps.getAllowedDomains();
 
-    let originUrl;
-    try {
-        originUrl = new URL(requestDetails.originUrl);
-    } catch {
-        return { cancel: false, reason: "unparseable-origin" };
+    const early = evaluateRequestSync(requestDetails, allowedDomains);
+    if (!early.phase) {
+        return early;
     }
 
-    let url;
-    try {
-        url = new URL(requestDetails.url);
-    } catch {
-        return { cancel: false, reason: "unparseable-url" };
-    }
+    const resolved = await resolveWithOptionalCache(
+        early.requestHost,
+        deps,
+        early.needsRebindingCheck
+    );
+    return finishEvaluateRequestWithDns(early, resolved);
+}
 
-    const allowedDomains = await getAllowedDomains();
-    // Domains match the page origin only. IP/CIDR entries also match destinations
-    // so allowlisting 127.0.0.1 works for scans from file:// or other pages.
-    if (requestMatchesAllowlist(originUrl.host, url.host, allowedDomains)) {
-        return { cancel: false, reason: "allowlisted" };
-    }
-
-    const requestHost = normalizeHostname(url.hostname);
-    const originHost = normalizeHostname(originUrl.hostname);
-    const sameHost = requestHost === originHost;
-
-    // Same-host first-party resources (page's own assets): allow without DNS.
-    if (!isThirdParty && sameHost) {
-        return { cancel: false, reason: "first-party" };
-    }
-
-    // Port-scan / private-address checks only for third-party requests.
-    if (isThirdParty) {
-        if (isLocalRequestUrl(url)) {
-            return { cancel: true, reason: "portscan", url };
-        }
-
-        // Literal public (or already-classified) IPs: no DNS follow-up.
-        if (isLiteralIpHostname(url.hostname)) {
-            return { cancel: false, reason: "literal-ip" };
-        }
-    } else if (isLiteralIpHostname(url.hostname)) {
-        // Same-site but literal IP host — not a TMX hostname path.
-        return { cancel: false, reason: "first-party" };
-    }
-
-    // Known LexisNexis / ThreatMetrix hosts: block without a DNS side-channel.
-    // Applies to first- and third-party (direct infrastructure hits).
-    if (matchesThreatMetrixHost(url.hostname)) {
-        return { cancel: true, reason: "threatmetrix", url };
-    }
-
-    // DNS is needed for:
-    //  (1) third-party rebinding-like private A/AAAA answers
-    //  (2) customer-specific CNAMEs into ThreatMetrix (including same-site
-    //      branded hosts such as tmx.bestbuy.com → h-bestbuy.online-metrix.net)
-    const needsRebindingCheck = isThirdParty && hostnameSuggestsIpRebinding(url.hostname);
-    const resolved = await resolveWithOptionalCache(url.hostname, deps, needsRebindingCheck);
-    if (!resolved.ok) {
-        // Explicit fail-open: a resolver outage must not break browsing.
-        // Known ThreatMetrix suffixes are already handled without DNS above.
-        return { cancel: false, reason: "dns-failure" };
-    }
-    const { resolving } = resolved;
-
-    if (needsRebindingCheck) {
-        for (const address of resolving.addresses ?? []) {
-            if (isUnspecifiedAddress(address)) continue;
-            if (isPrivateAddress(address)) {
-                return { cancel: true, reason: "portscan", url };
-            }
-        }
-    }
-
-    if (matchesThreatMetrixHost(resolving.canonicalName ?? "")) {
-        return { cancel: true, reason: "threatmetrix", url };
-    }
-
-    return { cancel: false, reason: isThirdParty ? "clean" : "first-party" };
+/**
+ * Resolve DNS for a sync needs-dns pending result (used by background cancel).
+ * @param {FilterNeedsDns} pending
+ * @param {RequestFilterDeps} deps
+ * @returns {Promise<FilterAllow | FilterBlock>}
+ */
+export async function evaluateRequestDnsPhase(pending, deps) {
+    const resolved = await resolveWithOptionalCache(
+        pending.requestHost,
+        deps,
+        pending.needsRebindingCheck
+    );
+    return finishEvaluateRequestWithDns(pending, resolved);
 }

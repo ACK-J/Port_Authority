@@ -5,7 +5,8 @@ import {
     addBlockedPortToHost,
     addBlockedTrackingHost,
     increaseBadge,
-    getAllowedDomainListCached,
+    getCompiledAllowlistCached,
+    peekCompiledAllowlist,
     applyStorageChangesToCaches,
     resetSessionTabActivity,
     clearTabActivityData,
@@ -13,7 +14,11 @@ import {
     getTabActivityForTab,
 } from "./global/BrowserStorageManager.js";
 import { getBadgeForTab } from "./global/tabActivity.js";
-import { evaluateRequest, createDnsResultCache } from "./global/requestFilter.js";
+import {
+    evaluateRequestSync,
+    evaluateRequestDnsPhase,
+    createDnsResultCache,
+} from "./global/requestFilter.js";
 import {
     openSelectiveAllowPopup,
     notifySelectiveAllow,
@@ -33,6 +38,11 @@ const dnsResultCache = createDnsResultCache();
 /** Session allow (Allow Once) + pending-prompt tracking. */
 const selectiveAllow = createSelectiveAllowState();
 
+const filterDeps = {
+    resolveDns: (hostname) => browser.dns.resolve(hostname, ["canonical_name"]),
+    dnsCache: dnsResultCache,
+};
+
 async function startup() {
     // Defaults apply until settings are explicitly written.
     console.log("Startup called");
@@ -41,7 +51,7 @@ async function startup() {
     await resetSessionTabActivity();
 
     // Warm the allowlist cache so the first requests avoid a storage round-trip.
-    await getAllowedDomainListCached();
+    await getCompiledAllowlistCached();
 
     const state = await getItemFromLocal("blocking_enabled", true);
     if (state === true) {
@@ -51,8 +61,8 @@ async function startup() {
     }
 }
 
-function blockPortScan(requestDetails, url) {
-    increaseBadge(requestDetails, false);
+function blockPortScan(requestDetails, url, originHostHint) {
+    increaseBadge(requestDetails, false, originHostHint);
     addBlockedPortToHost(url, requestDetails.tabId);
     return { cancel: true };
 }
@@ -142,13 +152,12 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
     return { cancel: true };
 }
 
-async function cancel(requestDetails) {
-    const decision = await evaluateRequest(requestDetails, {
-        getAllowedDomains: () => getAllowedDomainListCached(),
-        resolveDns: (hostname) => browser.dns.resolve(hostname, ["canonical_name"]),
-        dnsCache: dnsResultCache,
-    });
-
+/**
+ * Apply a final filter decision to the webRequest cancel path.
+ * Returns a plain object when possible so Firefox avoids Promise scheduling.
+ * @returns {{ cancel: boolean } | Promise<{ cancel: boolean }>}
+ */
+function applyDecision(requestDetails, decision) {
     if (!decision.cancel) {
         if (decision.reason === "unparseable-origin") {
             console.error("Aborted filtering on domain due to unparseable originUrl: ", requestDetails.originUrl);
@@ -168,16 +177,46 @@ async function cancel(requestDetails) {
         ) {
             return handleSelectiveAllowNavigation(requestDetails, decision.url);
         }
-        return blockPortScan(requestDetails, decision.url);
+        return blockPortScan(requestDetails, decision.url, decision.originHost);
     }
 
     if (decision.reason === "threatmetrix") {
-        increaseBadge(requestDetails, true);
+        increaseBadge(requestDetails, true, decision.originHost);
         addBlockedTrackingHost(decision.url, requestDetails.tabId);
         return { cancel: true };
     }
 
     return { cancel: false };
+}
+
+/**
+ * Blocking webRequest handler. Uses a sync fast-path when the allowlist cache is warm
+ * and DNS is not required; otherwise falls through to an async DNS phase.
+ * @returns {{ cancel: boolean } | Promise<{ cancel: boolean }>}
+ */
+function cancel(requestDetails) {
+    const compiled = peekCompiledAllowlist();
+    if (compiled !== undefined) {
+        const early = evaluateRequestSync(requestDetails, compiled);
+        if (!early.phase) {
+            return applyDecision(requestDetails, early);
+        }
+        return evaluateRequestDnsPhase(early, filterDeps).then((decision) =>
+            applyDecision(requestDetails, decision)
+        );
+    }
+
+    return cancelAsync(requestDetails);
+}
+
+async function cancelAsync(requestDetails) {
+    const compiled = await getCompiledAllowlistCached();
+    const early = evaluateRequestSync(requestDetails, compiled);
+    if (!early.phase) {
+        return applyDecision(requestDetails, early);
+    }
+    const decision = await evaluateRequestDnsPhase(early, filterDeps);
+    return applyDecision(requestDetails, decision);
 }
 
 async function start() {
@@ -252,14 +291,17 @@ async function navigateAllowedUrl(tabId, url) {
     await browser.tabs.create({ url });
 }
 
-/** Parse JSON-stringified storage.onChanged values. */
+/** Parse storage.onChanged values (native or legacy JSON-stringified). */
 function parseStorageChangeValue(raw) {
     if (raw === undefined) return undefined;
-    try {
-        return JSON.parse(raw);
-    } catch {
-        return undefined;
+    if (typeof raw === "string") {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return undefined;
+        }
     }
+    return raw;
 }
 
 /**

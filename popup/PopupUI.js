@@ -4,9 +4,10 @@ import { createElement } from "../global/domUtils.js";
 
 /**
  * Prefer live background memory (issue #52 coalesced writes) with storage fallback.
- * @param {"blocked_ports" | "blocked_hosts"} data_type
+ * Fetches both blocked_ports and blocked_hosts in one round-trip.
+ * @returns {Promise<{ blocked_ports?: object, blocked_hosts?: string[] }|undefined>}
  */
-async function fetch_tabs_blocking_data(data_type) {
+async function fetch_tab_blocking_data() {
     const tab_id = await getActiveTabId();
     if (tab_id == null) return;
 
@@ -15,17 +16,25 @@ async function fetch_tabs_blocking_data(data_type) {
             type: "getTabActivity",
             tabId: tab_id,
         });
-        if (live && Object.prototype.hasOwnProperty.call(live, data_type)) {
-            return live[data_type];
+        if (live && typeof live === "object") {
+            return {
+                blocked_ports: live.blocked_ports,
+                blocked_hosts: live.blocked_hosts,
+            };
         }
     } catch (error) {
         console.warn("Falling back to storage for popup data:", error);
     }
 
     // TODO rework this when flipping data structure as discussed in issue #47
-    const all_tabs_data = await getItemFromLocal(data_type, {});
-    if (Object.keys(all_tabs_data).length === 0) return;
-    return all_tabs_data[tab_id];
+    const [blocked_ports, blocked_hosts] = await Promise.all([
+        getItemFromLocal("blocked_ports", {}),
+        getItemFromLocal("blocked_hosts", {}),
+    ]);
+    return {
+        blocked_ports: blocked_ports?.[tab_id],
+        blocked_hosts: blocked_hosts?.[tab_id],
+    };
 }
 
 /**
@@ -104,10 +113,7 @@ function blocked_hosts_item(host) {
 // Populate `#blocked_ports`
 const blocked_ports_wrapper = document.getElementById("blocked_ports");
 const blocked_ports_contents = blocked_ports_wrapper.querySelector(".dropzone");
-async function load_blocked_ports(blocked_ports_object) {
-    // If not provided, fetch the data from storage
-    blocked_ports_object ??= await fetch_tabs_blocking_data("blocked_ports");
-
+function load_blocked_ports(blocked_ports_object) {
     // Clear stale contents, if any
     blocked_ports_contents.replaceChildren();
 
@@ -138,10 +144,7 @@ async function load_blocked_ports(blocked_ports_object) {
 // Populate `#blocked_hosts`
 const blocked_hosts_wrapper = document.getElementById("blocked_hosts");
 const blocked_hosts_contents = blocked_hosts_wrapper.querySelector('.dropzone');
-async function load_blocked_hosts(blocked_hosts_list) {
-    // If not provided, fetch the data from storage
-    blocked_hosts_list ??= await fetch_tabs_blocking_data("blocked_hosts");
-
+function load_blocked_hosts(blocked_hosts_list) {
     // Clear stale contents, if any
     blocked_hosts_contents.replaceChildren();
 
@@ -163,5 +166,7 @@ async function load_blocked_hosts(blocked_hosts_list) {
 }
 
 // TODO live rerendering on data change, could use storage event coordinating as discussed in issue #50: https://github.com/ACK-J/Port_Authority/issues/50
-load_blocked_ports();
-load_blocked_hosts();
+fetch_tab_blocking_data().then((data) => {
+    load_blocked_ports(data?.blocked_ports);
+    load_blocked_hosts(data?.blocked_hosts);
+});

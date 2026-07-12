@@ -3,10 +3,12 @@
  */
 import {
     evaluateRequest,
+    evaluateRequestSync,
     THREATMETRIX_SUFFIXES,
     matchesThreatMetrixHost,
     createDnsResultCache,
 } from "../global/requestFilter.js";
+import { compileAllowlist } from "../global/allowlist.js";
 import { normalizeHostname } from "../global/privateAddress.js";
 import { suite, assert, assertEqual } from "./harness.js";
 
@@ -29,6 +31,35 @@ function deps(overrides = {}) {
 }
 
 export async function run() {
+    suite("evaluateRequestSync fast-path");
+    {
+        const compiled = compileAllowlist([]);
+        const firstParty = evaluateRequestSync(
+            req({
+                thirdParty: false,
+                originUrl: "https://www.example.com/page",
+                url: "https://www.example.com/app.js",
+            }),
+            compiled
+        );
+        assertEqual(firstParty.cancel, false, "sync first-party allow");
+        assertEqual(firstParty.phase, undefined, "sync path does not need DNS");
+
+        const portscan = evaluateRequestSync(
+            req({ url: "http://127.0.0.1:22/" }),
+            compiled
+        );
+        assertEqual(portscan.cancel, true, "sync portscan block");
+        assertEqual(portscan.reason, "portscan", "sync portscan reason");
+
+        const needsDns = evaluateRequestSync(
+            req({ url: "https://cdn.example.com/x.js" }),
+            compiled
+        );
+        assertEqual(needsDns.phase, "needs-dns", "third-party hostname needs DNS");
+        assertEqual(needsDns.requestHost, "cdn.example.com", "normalized request host");
+    }
+
     suite("first-party and allowlist short circuits");
     {
         // Same host, same site — no DNS, no blocking
