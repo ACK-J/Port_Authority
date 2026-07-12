@@ -39,7 +39,7 @@ async function fetch_tabs_blocking_data(data_type) {
  *     <span class="host">{host}</span>
  *     <label class="ports-expansion-toggle unselectable">
  *         <input type="checkbox">
- *         View Ports
+ *         {n} ports
  *     </label>
  *     <ul class="ports-expansion-target">
  *         <li class="port">{ports[0]}</li>
@@ -65,15 +65,16 @@ function blocked_ports_item(host, ports) {
     // Put low-number privileged ports first in the list
     ports.sort((a, b)=>(+a - +b));
 
-    /**"View Ports" toggle
+    /** Port list toggle
      * 
      * Collapse/expand functionality is added with CSS.
      * Wrapping `<label>` instead of placing it after the checkbox to avoid having to set a unique id on each input.
      */
+    const port_label = ports.length === 1 ? "1 port" : `${ports.length} ports`;
     const expansion_toggle = createElement("label", {class: ["ports-expansion-toggle", "unselectable"]},
         [
             createElement("input", {type: "checkbox"}),
-            "View Ports"
+            port_label
         ]
     );
     container.appendChild(expansion_toggle);
@@ -97,7 +98,7 @@ function blocked_ports_item(host, ports) {
  * @returns {Element} A `<li>` wrapping the host string
  */
 function blocked_hosts_item(host) {
-    return createElement("li", {}, host);
+    return createElement("li", {class: "blocked-script-item"}, host);
 }
 
 // Populate `#blocked_ports`

@@ -1,109 +1,320 @@
+/* Popup shell */
 body {
-    min-width: 280px;
+    --popup-width: 320px;
+    --radius: 10px;
+    --gap: 0.75rem;
+    --surface: color-mix(in oklab, var(--foreground) 5%, var(--background));
+    --surface-strong: color-mix(in oklab, var(--foreground) 9%, var(--background));
+    --border: color-mix(in oklab, var(--foreground) 14%, transparent);
+    --muted: color-mix(in oklab, var(--foreground) 62%, var(--background));
+    --brand-deep: color-mix(in oklab, var(--red) 88%, black);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+    min-width: var(--popup-width);
+    max-width: var(--popup-width);
+    overflow-x: hidden;
+    line-height: 1.4;
 }
 
-h1, h2 {
+h1,
+h2 {
     margin: 0;
     white-space: nowrap;
 }
 
-/* Header */
+/* Brand header */
 header {
-    padding: 20px 30px;
-    justify-content: center;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 0.95rem;
+    background:
+        radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, white 18%, transparent), transparent 55%),
+        linear-gradient(135deg, var(--brand-deep), var(--red) 58%, color-mix(in oklab, var(--red) 70%, #3a0a0a));
+    color: #fff7f5;
+    transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
-header img {
-    /* Visual alignment tweaks, finicky */
-    margin-bottom: -5px;
-    margin-right: 5px;
-    margin-left: -5px;
+body[data-blocking="off"] header {
+    filter: grayscale(0.35);
+    opacity: 0.92;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+}
+
+.brand img {
+    flex-shrink: 0;
+    border-radius: 7px;
+}
+
+header h1 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+}
+
+/* Settings gear */
+#settings {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+#settings:hover,
+#settings:focus-visible {
+    background-color: color-mix(in oklab, white 16%, transparent);
+    outline: none;
+}
+
+#settings::after {
+    content: "";
+    display: block;
+    width: 1.15rem;
+    height: 1.15rem;
+    background-color: currentColor;
+    mask-image: url("../icons/settings.png");
+    mask-size: 100%;
+    mask-repeat: no-repeat;
+    mask-position: center;
 }
 
 /* Main layout */
 main {
-    gap: 1rem;
-    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    padding: 0.85rem;
 }
 
-/* Headings should be slightly smaller */
 h2 {
-    font-size: 1.25rem;
-    margin-bottom: 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.45rem;
 }
 
-/* Settings switches need vertical padding when displayed on two rows */
-.switch {
-    padding-top: 0.4em;
+/* Control rows */
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
 }
 
-/* Options link */
-#settings {
-    float: right;
-    
-    /* `<a>` resets */
-    text-decoration: none;
+.switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.switch-row:hover {
+    background: var(--surface-strong);
+    border-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+
+.switch-row:focus-within {
+    border-color: color-mix(in oklab, var(--red) 55%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--red) 22%, transparent);
+}
+
+.switch-row .switch input:focus-visible + .slider {
+    outline: none;
+}
+
+.switch-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    min-width: 0;
+}
+
+.switch-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.switch-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.25;
+}
+
+.switch-row .switch {
+    flex-shrink: 0;
+    padding: 0;
+}
+
+/* Activity panels */
+.activity {
+    animation: rise-in 0.22s ease both;
+}
+
+.activity-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.activity-list > li {
+    padding: 0.65rem 0.75rem;
+}
+
+.activity-list > li + li {
+    border-top: 1px solid var(--border);
+}
+
+/* Blocked port scans */
+.blocked-host-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.6rem;
+    align-items: start;
+}
+
+.blocked-host-item .host {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.35;
+    word-break: break-all;
     color: var(--foreground);
 }
-#settings:hover, #settings:focus {
-    opacity: 0.75;
-}
-/* Adding the gear icon in a way that is easy to recolor */
-#settings::after {
-    content: '';
-    
-    display: block;
-    height: 1.5rem;
-    width: 1.5rem;
 
-    /* `currentColor` matches the `color` property's value */
-    background-color: currentColor;
-
-    /* Make it gear shaped, instead of a 24x24 gray rectangle */
-    mask-image: url("../icons/settings.png");
-    mask-size: 100%;
-}
-
-/* Blocked portscans/scripts list styling */
-#blocked_ports ul,
-#blocked_hosts ul {
-    list-style-type: none;
-    margin: 0;
-    padding: 0 10px;
-}
-
-/* The host text display */
-#blocked_ports .host {
-    font-weight: bold;
-}
-
-/* The "View Ports" toggle */
 .ports-expansion-toggle {
-    cursor: pointer;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    justify-self: end;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in oklab, var(--red-text) 35%, transparent);
+    background: color-mix(in oklab, var(--red-text) 10%, transparent);
     color: var(--red-text);
-    float: right;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
+
+.ports-expansion-toggle:hover {
+    background: color-mix(in oklab, var(--red-text) 18%, transparent);
+}
+
+.ports-expansion-toggle:focus-within {
+    outline: 2px solid color-mix(in oklab, var(--red-text) 55%, transparent);
+    outline-offset: 2px;
+}
+
 .ports-expansion-toggle input {
-    display: none;
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
 }
 
-/* Expand the ports list when the toggle is enabled */
+.ports-expansion-toggle::after {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg) translateY(-1px);
+    transition: transform 0.2s ease;
+}
+
+.ports-expansion-toggle:has(input:checked)::after {
+    transform: rotate(225deg) translateY(-1px);
+}
+
 .ports-expansion-target {
-    visibility: hidden; /* Prevents copying unwanted values */
-    overflow-y: hidden;
+    grid-column: 1 / -1;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    visibility: hidden;
+    overflow: hidden;
     height: 0;
-
-    transition-property: height, visibility;
-    transition-duration: 0.25s;
+    transition-property: height, visibility, margin;
+    transition-duration: 0.22s;
 }
+
 .ports-expansion-toggle:has(input:checked) + .ports-expansion-target {
     visibility: visible;
-    height: var(--expanded-height); /* Replace with `auto` once `interpolate-size: allow-keywords` is supported in Firefox */
+    height: var(--expanded-height);
+    margin-top: 0.15rem;
 }
 
+.ports-expansion-target .port {
+    display: inline-flex;
+    align-items: center;
+    margin: 0.2rem 0.3rem 0 0;
+    padding: 0.12rem 0.4rem;
+    border-radius: 6px;
+    background: color-mix(in oklab, var(--foreground) 8%, var(--background));
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--foreground);
+}
 
-/* Blocked tracking scripts list styling */
-#blocked_hosts li {
+/* Blocked tracking scripts */
+#blocked_hosts .activity-list > li {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 600;
     color: var(--red-text);
-    font-weight: bold;
+    word-break: break-all;
+    line-height: 1.35;
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity,
+    .ports-expansion-target,
+    .ports-expansion-toggle::after,
+    #settings,
+    .switch-row {
+        animation: none;
+        transition: none;
+    }
 }

@@ -1,18 +1,31 @@
 import { getItemFromLocal, setItemInLocal } from "../global/BrowserStorageManager.js";
 
 // Can attach settings page link instantly, no state reading needed
-document.getElementById('settings').addEventListener("click", () =>
-    browser.runtime.openOptionsPage());
+document.getElementById("settings").addEventListener("click", (event) => {
+    event.preventDefault();
+    browser.runtime.openOptionsPage();
+});
+
+/**
+ * Mirror the blocking toggle onto <body> so CSS can reflect protection state.
+ * @param {boolean} enabled
+ */
+function setBlockingState(enabled) {
+    document.body.dataset.blocking = enabled ? "on" : "off";
+}
 
 // Blocking switch state bindings (wrapped in `.then()` to allow for parallel setup of notifications switch)
 const blocking_switch = document.getElementById("blocking_switch");
 const blocking_setup = getItemFromLocal("blocking_enabled", true).then((blocking_enabled) => {
     blocking_switch.checked = blocking_enabled;
-    blocking_switch.addEventListener("change", (ev) =>
+    setBlockingState(blocking_enabled);
+    blocking_switch.addEventListener("change", (ev) => {
+        setBlockingState(ev.target.checked);
         browser.runtime.sendMessage({
-            type: 'toggleEnabled',
+            type: "toggleEnabled",
             value: ev.target.checked
-        }));
+        });
+    });
 });
 
 // Notifications switch state bindings
