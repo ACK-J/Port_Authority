@@ -7,6 +7,8 @@ import {
     hostMatchesAllowlistEntry,
     requestMatchesAllowlist,
     ipInCIDR,
+    compileAllowlist,
+    isCompiledAllowlist,
 } from "../global/allowlist.js";
 import { suite, assert, assertEqual, assertRejects } from "./harness.js";
 
@@ -130,6 +132,41 @@ export async function run() {
     assert(isHostAllowlisted("192.168.2.50:8006", ["192.168.1.0/24"]) === false, "outside /24");
     assert(isHostAllowlisted("10.0.5.1", ["10.0.0.0/8"]) === true, "in /8");
     assert(isHostAllowlisted("fe80::abcd:1", ["fe80::/10"]) === true, "IPv6 in CIDR");
+
+    suite("compileAllowlist hot-path matching");
+    {
+        const compiled = compileAllowlist([
+            "discord.com",
+            "127.0.0.1",
+            "192.168.1.0/24",
+            "example.com:8443",
+        ]);
+        assert(isCompiledAllowlist(compiled), "marks compiled shape");
+        assert(compiled.exactHosts.has("discord.com"), "domain in exact set");
+        assert(compiled.exactHosts.has("example.com:8443"), "host:port in exact set");
+        assert(compiled.portlessIps.has("127.0.0.1"), "portless IP classified");
+        assertEqual(compiled.cidrs.length, 1, "one CIDR compiled");
+        assert(
+            requestMatchesAllowlist("discord.com", "10.0.0.1:80", compiled) === true,
+            "compiled domain matches origin"
+        );
+        assert(
+            requestMatchesAllowlist("evil.example", "127.0.0.1:80", compiled) === true,
+            "compiled IP matches destination"
+        );
+        assert(
+            requestMatchesAllowlist("evil.example", "192.168.1.50:8006", compiled) === true,
+            "compiled CIDR matches destination"
+        );
+        assert(
+            requestMatchesAllowlist("evil.example", "cdn.discord.com", compiled) === false,
+            "compiled domains do not match destinations"
+        );
+        assert(
+            isHostAllowlisted("127.0.0.1:8080", compiled) === true,
+            "compiled portless IP matches any origin port"
+        );
+    }
 
     suite("requestMatchesAllowlist origin vs destination");
     assert(

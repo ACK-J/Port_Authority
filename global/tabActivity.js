@@ -14,20 +14,81 @@
 /** @type {{ [tabId: string]: BadgeInfo }} */
 let badges = {};
 
-/** @type {{ [tabId: string]: { [host: string]: string[] } }} */
+/** @type {{ [tabId: string]: { [host: string]: Set<string> } }} */
 let blockedPorts = {};
 
-/** @type {{ [tabId: string]: string[] }} */
+/** @type {{ [tabId: string]: Set<string> }} */
 let blockedHosts = {};
 
+/** Tabs whose activity changed since the last successful persist/clean. */
+/** @type {Set<string>} */
+let dirtyTabs = new Set();
+
+/** True when any activity mutation has not yet been persisted. */
+let activityDirty = false;
+
+function markDirty(tabId) {
+    activityDirty = true;
+    if (tabId !== undefined && tabId !== null) {
+        dirtyTabs.add(String(tabId));
+    }
+}
+
 /**
- * Snapshot of in-memory activity (deep-enough copies for safe persistence).
+ * @returns {boolean} Whether activity was dirty before this call.
+ */
+export function consumeActivityDirty() {
+    const wasDirty = activityDirty;
+    activityDirty = false;
+    dirtyTabs.clear();
+    return wasDirty;
+}
+
+/**
+ * @returns {boolean}
+ */
+export function isActivityDirty() {
+    return activityDirty;
+}
+
+/**
+ * Snapshot of in-memory activity as plain JSON-ready objects (arrays, not Sets).
+ * Built without structuredClone — only converts dirty-owned structures as needed.
  */
 export function getTabActivitySnapshot() {
+    /** @type {{ [tabId: string]: BadgeInfo }} */
+    const badgeSnap = {};
+    for (const tabId of Object.keys(badges)) {
+        const badge = badges[tabId];
+        badgeSnap[tabId] = {
+            counter: badge.counter,
+            alerted: badge.alerted,
+            lastURL: badge.lastURL,
+        };
+    }
+
+    /** @type {{ [tabId: string]: { [host: string]: string[] } }} */
+    const portsSnap = {};
+    for (const tabId of Object.keys(blockedPorts)) {
+        const hosts = blockedPorts[tabId];
+        /** @type {{ [host: string]: string[] }} */
+        const hostMap = {};
+        for (const host of Object.keys(hosts)) {
+            hostMap[host] = Array.from(hosts[host]);
+        }
+        portsSnap[tabId] = hostMap;
+    }
+
+    /** @type {{ [tabId: string]: string[] }} */
+    const hostsSnap = {};
+    for (const tabId of Object.keys(blockedHosts)) {
+        hostsSnap[tabId] = Array.from(blockedHosts[tabId]);
+    }
+
     return {
-        badges: clone(badges),
-        blocked_ports: clone(blockedPorts),
-        blocked_hosts: clone(blockedHosts),
+        badges: badgeSnap,
+        blocked_ports: portsSnap,
+        blocked_hosts: hostsSnap,
     };
 }
 
@@ -44,6 +105,7 @@ export function clearTabActivity(tabId) {
     delete badges[tabId];
     delete blockedPorts[tabId];
     delete blockedHosts[tabId];
+    markDirty(tabId);
 }
 
 /**
@@ -59,6 +121,7 @@ export function resetTabActivityForNavigation(tabId, lastURL) {
         alerted: 0,
         lastURL,
     };
+    markDirty(tabId);
 }
 
 /** Defensive caps so a pathological page cannot grow per-tab maps without bound. */
@@ -74,14 +137,15 @@ export const MAX_BLOCKED_HOSTS_PER_TAB = 200;
  */
 export function recordBlockedPort(tabId, host, port, maxPortsPerHost = MAX_PORTS_PER_HOST) {
     const tabHosts = blockedPorts[tabId] || (blockedPorts[tabId] = {});
-    const ports = tabHosts[host];
-    if (Array.isArray(ports)) {
-        if (ports.includes(port)) return false;
-        if (ports.length >= maxPortsPerHost) return false;
-        tabHosts[host] = ports.concat([port]);
+    let ports = tabHosts[host];
+    if (ports) {
+        if (ports.has(port)) return false;
+        if (ports.size >= maxPortsPerHost) return false;
+        ports.add(port);
     } else {
-        tabHosts[host] = [port];
+        tabHosts[host] = new Set([port]);
     }
+    markDirty(tabId);
     return true;
 }
 
@@ -92,10 +156,15 @@ export function recordBlockedPort(tabId, host, port, maxPortsPerHost = MAX_PORTS
  * @returns {boolean} true when a new host was recorded
  */
 export function recordBlockedTrackingHost(tabId, host, maxHostsPerTab = MAX_BLOCKED_HOSTS_PER_TAB) {
-    const list = blockedHosts[tabId] || (blockedHosts[tabId] = []);
-    if (list.includes(host)) return false;
-    if (list.length >= maxHostsPerTab) return false;
-    blockedHosts[tabId] = list.concat([host]);
+    let list = blockedHosts[tabId];
+    if (list) {
+        if (list.has(host)) return false;
+        if (list.size >= maxHostsPerTab) return false;
+        list.add(host);
+    } else {
+        blockedHosts[tabId] = new Set([host]);
+    }
+    markDirty(tabId);
     return true;
 }
 
@@ -119,6 +188,7 @@ export function incrementBadgeCounter(tabId, url) {
     if (shouldNotify) {
         badges[tabId].alerted += 1;
     }
+    markDirty(tabId);
 
     return {
         counter: badges[tabId].counter,
@@ -135,12 +205,6 @@ export function resetTabActivityMemory() {
     badges = {};
     blockedPorts = {};
     blockedHosts = {};
-}
-
-function clone(value) {
-    try {
-        return structuredClone(value);
-    } catch {
-        return JSON.parse(JSON.stringify(value));
-    }
+    dirtyTabs = new Set();
+    activityDirty = false;
 }

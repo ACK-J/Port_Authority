@@ -293,6 +293,10 @@ async function runQuiet() {
         const first = await storageApi.getAllowedDomainListCached();
         assertEqual(first, ["a.example"], "cache loads from storage");
 
+        const compiled = storageApi.peekCompiledAllowlist();
+        assert(compiled && compiled.__compiled === true, "compiled allowlist warmed");
+        assert(compiled.exactHosts.has("a.example"), "compiled exact host entry");
+
         await storage.set({ allowed_domain_list: JSON.stringify(["stale-ignored.example"]) });
         const second = await storageApi.getAllowedDomainListCached();
         assertEqual(second, ["a.example"], "hot path keeps cached allowlist");
@@ -301,7 +305,56 @@ async function runQuiet() {
             allowed_domain_list: { newValue: JSON.stringify(["fresh.example"]) },
         });
         const third = await storageApi.getAllowedDomainListCached();
-        assertEqual(third, ["fresh.example"], "storage.onChanged refreshes cache");
+        assertEqual(third, ["fresh.example"], "storage.onChanged refreshes cache from legacy string");
+
+        storageApi.applyStorageChangesToCaches({
+            allowed_domain_list: { newValue: ["native.example"] },
+        });
+        assertEqual(
+            await storageApi.getAllowedDomainListCached(),
+            ["native.example"],
+            "storage.onChanged refreshes cache from native array"
+        );
+    }
+
+    suite("native storage values (no double JSON)");
+    {
+        await storageApi.setItemInLocal("native_flag", true);
+        const dumped = storage._dump();
+        assertEqual(dumped.native_flag, true, "booleans stored natively");
+        assertEqual(typeof dumped.native_flag, "boolean", "not a JSON string cell");
+
+        await storage.set({ legacy_list: JSON.stringify(["legacy.example"]) });
+        assertEqual(
+            await storageApi.getItemFromLocal("legacy_list", []),
+            ["legacy.example"],
+            "legacy stringified cells still decode"
+        );
+    }
+
+    suite("dirty-tab activity persist skips clean flushes");
+    {
+        await storageApi.resetSessionTabActivity();
+        let setCalls = 0;
+        const innerSet = storage.set.bind(storage);
+        storage.set = async (obj) => {
+            setCalls += 1;
+            return innerSet(obj);
+        };
+
+        const before = setCalls;
+        await storageApi.flushTabActivity();
+        assertEqual(setCalls, before, "clean flush does not write");
+
+        storageApi.addBlockedTrackingHost(new URL("https://tmx.example/x"), "99");
+        await storageApi.flushTabActivity();
+        assert(setCalls > before, "dirty flush writes once");
+
+        const afterDirty = setCalls;
+        await storageApi.flushTabActivity();
+        assertEqual(setCalls, afterDirty, "second flush with no mutations is a no-op");
+
+        storage.set = innerSet;
     }
 
     assert(typeof storageApi.getItemFromLocal === "function", "API exported");

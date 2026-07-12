@@ -171,10 +171,16 @@ export function normalizeHostname(hostname) {
     return host.replace(/\.+$/u, "").toLowerCase();
 }
 
+/** Cheap gate before full IPv6 expansion — rejects ordinary hostnames with colons. */
+const IPV6_LITERAL_CHARS = /^[0-9a-f.:%]+$/i;
+
 /** True when `hostname` is an IPv4/IPv6 literal (not a domain name). */
 export function isLiteralIpHostname(hostname) {
     const host = normalizeHostname(hostname);
-    if (host.includes(":")) return expandIPv6(host) !== null;
+    if (host.includes(":")) {
+        if (!IPV6_LITERAL_CHARS.test(host)) return false;
+        return expandIPv6(host) !== null;
+    }
     return parseIPv4Octets(host) !== null;
 }
 
@@ -201,18 +207,29 @@ export function unwrapIpv4MappedAddress(hostname) {
 }
 
 /**
+ * True when an already-normalized hostname is localhost or a private IP literal.
+ * @param {string} hostname Result of {@link normalizeHostname}
+ */
+export function isLocalHostname(hostname) {
+    if (hostname === "localhost") return true;
+    if (!hostname) return false;
+    if (hostname.includes(":")) return isPrivateIPv6(hostname);
+    if (hostname.includes(".")) return isPrivateIPv4(hostname);
+    return false;
+}
+
+/**
  * Returns true when `url` targets a local/private address over a supported protocol.
  * Alternate IPv4 encodings (integer/hex/octal/short-form) are normalized by the
  * URL parser into dotted-decimal before this check runs.
  * @param {URL} url Parsed request URL
+ * @param {string} [normalizedHostname] Optional precomputed {@link normalizeHostname} result
  */
-export function isLocalRequestUrl(url) {
+export function isLocalRequestUrl(url, normalizedHostname) {
     if (!LOCAL_REQUEST_PROTOCOLS.has(url.protocol)) return false;
 
-    const hostname = normalizeHostname(url.hostname);
-    if (hostname === "localhost") return true;
-
-    return isPrivateAddress(hostname);
+    const hostname = normalizedHostname ?? normalizeHostname(url.hostname);
+    return isLocalHostname(hostname);
 }
 
 /** 0.0.0.0 or :: — common DNS sinkhole answers, not useful scan targets. */
@@ -232,24 +249,39 @@ export function isUnspecifiedAddress(ip) {
     return octets !== null && octets.every((o) => o === 0);
 }
 
+/** Embedded dotted-quad in a hostname label (e.g. 127.0.0.1.nip.io). */
+const EMBEDDED_DOTTED_IPV4 = /(?:^|\.)(?:\d{1,3}\.){3}\d{1,3}(?:\.|$)/;
+/** Integer / hex IPv4 encodings embedded in a hostname. */
+const EMBEDDED_INT_OR_HEX_IP = /(?:^|\.)(?:0x[0-9a-f]+|\d{8,10})(?:\.|$)/i;
+/** Known local-resolution / rebinding helper suffixes. */
+const REBINDING_HELPER_SUFFIXES = Object.freeze([
+    "nip.io",
+    "sslip.io",
+    "xip.io",
+    "localtest.me",
+    "lvh.me",
+    "vcap.me",
+    "lacolhost.com",
+]);
+
 /**
  * Hostnames that embed an IP (or use known local-resolution helpers) are the
  * practical DNS-rebinding vectors for port scans (e.g. 127.0.0.1.nip.io).
  * Ordinary domains must not get private-IP DNS blocking — content blockers
  * sinkhole trackers to 0.0.0.0/127.0.0.1 and would look like "port scans".
+ * @param {string} hostname
+ * @param {string} [normalizedHostname] Optional precomputed {@link normalizeHostname} result
  */
-export function hostnameSuggestsIpRebinding(hostname) {
-    const host = normalizeHostname(hostname);
-    if (host.includes(":")) return false; // literals handled elsewhere
+export function hostnameSuggestsIpRebinding(hostname, normalizedHostname) {
+    const host = normalizedHostname ?? normalizeHostname(hostname);
+    if (!host || host.includes(":")) return false; // literals handled elsewhere
 
-    if (/(?:^|\.)(?:\d{1,3}\.){3}\d{1,3}(?:\.|$)/.test(host)) return true;
-    if (/(?:^|\.)(?:0x[0-9a-f]+|\d{8,10})(?:\.|$)/i.test(host)) return true;
-    if (
-        /(?:^|\.)(?:nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me|lacolhost\.com)$/i.test(
-            host
-        )
-    ) {
-        return true;
+    if (EMBEDDED_DOTTED_IPV4.test(host)) return true;
+    if (EMBEDDED_INT_OR_HEX_IP.test(host)) return true;
+    for (const suffix of REBINDING_HELPER_SUFFIXES) {
+        if (host === suffix || host.endsWith(`.${suffix}`)) {
+            return true;
+        }
     }
     return false;
 }

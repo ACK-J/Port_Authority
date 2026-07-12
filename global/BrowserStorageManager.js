@@ -1,10 +1,13 @@
 import { updateBadges, notifyThreatMetrix, notifyPortScanning } from "./browserActions.js";
 import { getPortForProtocol } from "./constants.js";
 import { normalizeHostname } from "./privateAddress.js";
+import { compileAllowlist } from "./allowlist.js";
 import {
     clearTabActivity,
+    consumeActivityDirty,
     getTabActivitySnapshot,
     incrementBadgeCounter,
+    isActivityDirty,
     recordBlockedPort,
     recordBlockedTrackingHost,
     resetTabActivityForNavigation,
@@ -25,12 +28,35 @@ let tabActivityPersistEpoch = 0;
 
 /** @type {string[] | undefined} */
 let allowedDomainListCache;
+/** @type {import("./allowlist.js").CompiledAllowlist | undefined} */
+let allowedDomainCompiledCache;
 /** @type {boolean | undefined} */
 let notificationsAllowedCache;
 
 /**
+ * Decode a storage value. Supports legacy JSON-stringified payloads and native values.
+ * @param {any} storage_value
+ * @param {any} default_value
+ */
+function decodeStorageValue(storage_value, default_value) {
+    if (storage_value === undefined) {
+        return default_value;
+    }
+    // Legacy installs stored JSON.stringify(value) as the storage cell.
+    if (typeof storage_value === "string") {
+        try {
+            return JSON.parse(storage_value);
+        } catch {
+            // Non-JSON strings are treated as the value itself.
+            return storage_value;
+        }
+    }
+    return storage_value;
+}
+
+/**
  * Lock-free storage read. Callers must hold STORAGE_LOCK_KEY (shared or exclusive).
- * Values are JSON-stringified for historical compatibility with existing installs.
+ * Native objects are stored directly; legacy string cells are still decoded.
  */
 async function UNLOCKED_getItemFromLocal(key, default_value) {
     let storage_value;
@@ -41,7 +67,7 @@ async function UNLOCKED_getItemFromLocal(key, default_value) {
             return default_value;
         }
 
-        return JSON.parse(storage_value[key]);
+        return decodeStorageValue(storage_value[key], default_value);
     } catch (error) {
         console.error("Error getting storage value [" + key + "]: ", {
             error,
@@ -77,16 +103,13 @@ export async function setItemInLocal(key, value) {
 /**
  * Exclusive-lock write of multiple keys in one storage.set call.
  * Prefer this over sequential setItemInLocal when updating related keys.
+ * Values are stored natively (no double JSON.stringify).
  * @param {{ [key: string]: any }} entries
  * @returns {Promise<{ [key: string]: any }>}
  */
 export async function setItemsInLocal(entries) {
-    const stringified = Object.fromEntries(
-        Object.entries(entries).map(([key, value]) => [key, JSON.stringify(value)])
-    );
-
     return navigator.locks.request(STORAGE_LOCK_KEY, async () => {
-        await browser.storage.local.set(stringified);
+        await browser.storage.local.set(entries);
         return entries;
     });
 }
@@ -103,7 +126,7 @@ export async function modifyItemInLocal(key, default_value, mutate) {
     return navigator.locks.request(STORAGE_LOCK_KEY, async () => {
         const initial_value = await UNLOCKED_getItemFromLocal(key, default_value);
         const new_value = await mutate(initial_value);
-        await browser.storage.local.set({ [key]: JSON.stringify(new_value) });
+        await browser.storage.local.set({ [key]: new_value });
         return new_value;
     });
 }
@@ -113,41 +136,64 @@ export async function modifyItemInLocal(key, default_value, mutate) {
  * @param {{ [key: string]: any }} [default_structure]
  */
 export async function clearItemsInLocal(default_structure = {}) {
-    const stringified = Object.fromEntries(
-        Object.entries(default_structure).map(([key, value]) => [key, JSON.stringify(value)])
-    );
-
     return navigator.locks.request(STORAGE_LOCK_KEY, async () => {
         await browser.storage.local.clear();
-        if (Object.keys(stringified).length > 0) {
-            await browser.storage.local.set(stringified);
+        if (Object.keys(default_structure).length > 0) {
+            await browser.storage.local.set(default_structure);
         }
         return default_structure;
     });
 }
 
+function setAllowlistCaches(entries) {
+    if (entries === undefined) {
+        allowedDomainListCache = undefined;
+        allowedDomainCompiledCache = undefined;
+        return;
+    }
+    const list = Array.isArray(entries) ? entries : [];
+    allowedDomainListCache = list;
+    allowedDomainCompiledCache = compileAllowlist(list);
+}
+
 /**
- * In-memory allowlist for the blocking hot path (avoids lock + JSON.parse per request).
+ * Sync peek at the compiled allowlist when the hot-path cache is warm.
+ * @returns {import("./allowlist.js").CompiledAllowlist | undefined}
+ */
+export function peekCompiledAllowlist() {
+    return allowedDomainCompiledCache;
+}
+
+/**
+ * In-memory allowlist for the blocking hot path (avoids lock + parse per request).
  * @returns {Promise<string[]>}
  */
 export async function getAllowedDomainListCached() {
     if (allowedDomainListCache !== undefined) {
         return allowedDomainListCache;
     }
-    allowedDomainListCache = await getItemFromLocal("allowed_domain_list", []);
-    if (!Array.isArray(allowedDomainListCache)) {
-        allowedDomainListCache = [];
-    }
+    const loaded = await getItemFromLocal("allowed_domain_list", []);
+    setAllowlistCaches(Array.isArray(loaded) ? loaded : []);
     return allowedDomainListCache;
+}
+
+/**
+ * Compiled allowlist for the blocking hot path.
+ * @returns {Promise<import("./allowlist.js").CompiledAllowlist>}
+ */
+export async function getCompiledAllowlistCached() {
+    if (allowedDomainCompiledCache !== undefined) {
+        return allowedDomainCompiledCache;
+    }
+    await getAllowedDomainListCached();
+    return allowedDomainCompiledCache;
 }
 
 /**
  * @param {string[] | undefined} [nextValue]
  */
 export function syncAllowedDomainListCache(nextValue) {
-    allowedDomainListCache = nextValue === undefined
-        ? undefined
-        : (Array.isArray(nextValue) ? nextValue : []);
+    setAllowlistCaches(nextValue);
 }
 
 async function getNotificationsAllowedCached() {
@@ -168,22 +214,18 @@ export function syncNotificationsAllowedCache(nextValue) {
 }
 
 /**
- * Parse a JSON-stringified storage.onChanged newValue, or undefined to invalidate.
- * @param {string | undefined} raw
+ * Parse a storage.onChanged newValue (native object or legacy JSON string).
+ * @param {any} raw
  * @returns {any | undefined}
  */
 function parseChangedValue(raw) {
     if (raw === undefined) return undefined;
-    try {
-        return JSON.parse(raw);
-    } catch {
-        return undefined;
-    }
+    return decodeStorageValue(raw, undefined);
 }
 
 /**
  * Apply storage.onChanged updates to in-memory settings caches.
- * @param {{ [key: string]: { newValue?: string } }} changes
+ * @param {{ [key: string]: { newValue?: any } }} changes
  */
 export function applyStorageChangesToCaches(changes) {
     if (Object.prototype.hasOwnProperty.call(changes, "allowed_domain_list")) {
@@ -230,8 +272,12 @@ export async function flushTabActivity() {
 
 async function persistTabActivityNow(epoch = tabActivityPersistEpoch) {
     if (epoch !== tabActivityPersistEpoch) return;
+    if (!isActivityDirty()) return;
 
+    // Build a plain snapshot synchronously, then clear dirty before the await so
+    // mutations during the write re-arm persistence.
     const snapshot = getTabActivitySnapshot();
+    consumeActivityDirty();
     if (epoch !== tabActivityPersistEpoch) return;
 
     await setItemsInLocal({
@@ -333,8 +379,9 @@ export function addBlockedTrackingHost(url, tabIdString) {
  * Memory update is synchronous; disk persistence is coalesced (issue #52).
  * @param {{ tabId?: number, url?: string, originUrl?: string } | null} request
  * @param {boolean} isThreatMetrix
+ * @param {string} [originHostHint] Pre-parsed origin host to avoid a second URL parse
  */
-export async function increaseBadge(request, isThreatMetrix) {
+export async function increaseBadge(request, isThreatMetrix, originHostHint) {
     const tabId = request?.tabId;
     const url = request?.url;
 
@@ -356,7 +403,7 @@ export async function increaseBadge(request, isThreatMetrix) {
     if (!notifications_enabled) return;
 
     try {
-        const host = new URL(request.originUrl).host;
+        const host = originHostHint ?? new URL(request.originUrl).host;
         if (isThreatMetrix) {
             await notifyThreatMetrix(host);
         } else {

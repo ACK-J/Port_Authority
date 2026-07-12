@@ -293,13 +293,188 @@ export function hostMatchesAllowlistEntry(host, allowlistEntry) {
 }
 
 /**
+ * @typedef {object} CompiledCidr
+ * @property {string} cidr
+ * @property {4|6} version
+ * @property {number|null} networkInt
+ * @property {bigint|null} networkBig
+ * @property {number} prefix
+ * @property {number|null} maskInt
+ * @property {bigint|null} maskBig
+ */
+
+/**
+ * @typedef {object} CompiledAllowlist
+ * @property {true} __compiled
+ * @property {Set<string>} exactHosts Exact `URL.host` entries (domains and host:port)
+ * @property {Set<string>} portlessIps Canonical portless IP literals
+ * @property {CompiledCidr[]} cidrs Pre-parsed CIDR ranges
+ */
+
+/**
+ * Preclassify allowlist entries so hot-path matching avoids per-request URL/CIDR re-parsing.
+ * @param {string[]|null|undefined} entries
+ * @returns {CompiledAllowlist}
+ */
+export function compileAllowlist(entries) {
+    /** @type {Set<string>} */
+    const exactHosts = new Set();
+    /** @type {Set<string>} */
+    const portlessIps = new Set();
+    /** @type {CompiledCidr[]} */
+    const cidrs = [];
+
+    if (!Array.isArray(entries)) {
+        return { __compiled: true, exactHosts, portlessIps, cidrs };
+    }
+
+    for (const entry of entries) {
+        if (typeof entry !== "string" || !entry) continue;
+
+        if (isCIDRAllowlistEntry(entry)) {
+            const slashIndex = entry.lastIndexOf("/");
+            const network = normalizeHostname(entry.slice(0, slashIndex));
+            const prefix = Number(entry.slice(slashIndex + 1));
+            const networkInt = ipv4ToInt(network);
+            if (networkInt !== null) {
+                const maskInt = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+                cidrs.push({
+                    cidr: entry,
+                    version: 4,
+                    networkInt,
+                    networkBig: null,
+                    prefix,
+                    maskInt,
+                    maskBig: null,
+                });
+                continue;
+            }
+            const networkBig = ipv6ToBigInt(network);
+            if (networkBig !== null) {
+                const maskBig =
+                    prefix === 0 ? 0n : ((1n << 128n) - 1n) << BigInt(128 - prefix);
+                cidrs.push({
+                    cidr: entry,
+                    version: 6,
+                    networkInt: null,
+                    networkBig,
+                    prefix,
+                    maskInt: null,
+                    maskBig,
+                });
+            }
+            continue;
+        }
+
+        try {
+            const entryUrl = new URL(`http://${entry}/`);
+            if (entryUrl.port === "" && isLiteralIpHostname(entryUrl.hostname)) {
+                portlessIps.add(canonicalizeAllowlistHostname(entryUrl.hostname));
+                continue;
+            }
+        } catch {
+            // Fall through to exact-host storage.
+        }
+
+        exactHosts.add(entry);
+    }
+
+    return { __compiled: true, exactHosts, portlessIps, cidrs };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is CompiledAllowlist}
+ */
+export function isCompiledAllowlist(value) {
+    return Boolean(value && typeof value === "object" && value.__compiled === true);
+}
+
+/**
+ * @param {string} host
+ * @returns {string} Canonical hostname for IP/CIDR compares
+ */
+function canonicalHostnameFromHost(host) {
+    let hostname;
+    try {
+        hostname = new URL(`http://${host}/`).hostname;
+    } catch {
+        // Bare IPv6 without brackets (e.g. fe80::1) is not a valid URL authority.
+        hostname = host;
+    }
+    return canonicalizeAllowlistHostname(hostname);
+}
+
+/**
+ * @param {string} hostname Canonical hostname (no port)
+ * @param {CompiledAllowlist} compiled
+ * @returns {boolean}
+ */
+function ipOrCidrMatchesCompiled(hostname, compiled) {
+    if (compiled.portlessIps.has(hostname)) {
+        return true;
+    }
+
+    for (const rule of compiled.cidrs) {
+        if (rule.version === 4) {
+            const ipInt = ipv4ToInt(hostname);
+            if (ipInt !== null && (ipInt & rule.maskInt) === (rule.networkInt & rule.maskInt)) {
+                return true;
+            }
+            continue;
+        }
+        const ipBig = ipv6ToBigInt(hostname);
+        if (ipBig !== null && (ipBig & rule.maskBig) === (rule.networkBig & rule.maskBig)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Origin-style match: exact hosts, portless IPs, and CIDRs.
+ * @param {string} host
+ * @param {CompiledAllowlist} compiled
+ * @returns {boolean}
+ */
+function hostMatchesCompiled(host, compiled) {
+    if (compiled.exactHosts.has(host)) {
+        return true;
+    }
+
+    if (compiled.portlessIps.size === 0 && compiled.cidrs.length === 0) {
+        return false;
+    }
+
+    return ipOrCidrMatchesCompiled(canonicalHostnameFromHost(host), compiled);
+}
+
+/**
+ * Destination-style match: IP/CIDR entries only (domains never match destinations).
+ * @param {string} host
+ * @param {CompiledAllowlist} compiled
+ * @returns {boolean}
+ */
+function destinationMatchesCompiled(host, compiled) {
+    if (compiled.portlessIps.size === 0 && compiled.cidrs.length === 0) {
+        return false;
+    }
+
+    return ipOrCidrMatchesCompiled(canonicalHostnameFromHost(host), compiled);
+}
+
+/**
  * Exact host match against the allowlist (subdomains are not implicitly allowed).
  * Also honors portless IP entries and CIDR ranges for the given host.
  * @param {string} originHost `URL.host` of the requesting page
- * @param {string[]} allowedDomains
+ * @param {string[]|CompiledAllowlist} allowedDomains
  */
 export function isHostAllowlisted(originHost, allowedDomains) {
-    return allowedDomains.some((entry) => hostMatchesAllowlistEntry(originHost, entry));
+    const compiled = isCompiledAllowlist(allowedDomains)
+        ? allowedDomains
+        : compileAllowlist(allowedDomains);
+    return hostMatchesCompiled(originHost, compiled);
 }
 
 /**
@@ -308,18 +483,15 @@ export function isHostAllowlisted(originHost, allowedDomains) {
  * request destinations so trusted addresses can be reached (e.g. from file://).
  * @param {string} originHost `URL.host` of the requesting page
  * @param {string|null|undefined} requestHost `URL.host` of the request target
- * @param {string[]} allowlist
+ * @param {string[]|CompiledAllowlist} allowlist
  */
 export function requestMatchesAllowlist(originHost, requestHost, allowlist) {
-    return allowlist.some((entry) => {
-        if (hostMatchesAllowlistEntry(originHost, entry)) {
-            return true;
-        }
-
-        if (!requestHost || !isIPOrCIDREntry(entry)) {
-            return false;
-        }
-
-        return hostMatchesAllowlistEntry(requestHost, entry);
-    });
+    const compiled = isCompiledAllowlist(allowlist) ? allowlist : compileAllowlist(allowlist);
+    if (hostMatchesCompiled(originHost, compiled)) {
+        return true;
+    }
+    if (!requestHost) {
+        return false;
+    }
+    return destinationMatchesCompiled(requestHost, compiled);
 }
