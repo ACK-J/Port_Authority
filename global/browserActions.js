@@ -26,6 +26,20 @@ export async function notifyThreatMetrix(domain_name) {
 }
 
 /**
+ * Heads-up that a Selective Allow decision window/tab was opened.
+ * @param {string} origin
+ * @param {string} destination
+ */
+export async function notifySelectiveAllow(origin, destination) {
+    const from = origin || "this page";
+    return notify(
+        "selective-allow-notification",
+        "Local Navigation Blocked",
+        `Port Authority blocked ${from} from opening ${destination}. Choose Block, Allow Once, or Always Allow in the prompt.`
+    );
+}
+
+/**
  * Updates the extension button's badge text on the relevant tab.
  * @param {string|number} text
  * @param {number|string} tabId
@@ -53,15 +67,15 @@ export async function getActiveTabId() {
 }
 
 /**
- * Opens a Selective Allow decision popup.
- * @param {string} origin Host of the page that initiated the request
- * @param {string} destination Host:port being navigated to
- * @param {string} originalUrl Full URL the user was trying to reach
- * @param {number} [tabId] Tab whose navigation was cancelled (for reuse on allow)
- * @param {string} [page="selectiveAllow.html"] Page under selectiveAllow/
- * @returns {Promise<browser.windows.Window|undefined>}
+ * Build the Selective Allow decision page URL (query params included).
+ * @param {string} origin
+ * @param {string} destination
+ * @param {string} originalUrl
+ * @param {number} [tabId]
+ * @param {string} [page]
+ * @returns {string|null}
  */
-export async function openSelectiveAllowPopup(
+export function buildSelectiveAllowUrl(
     origin,
     destination,
     originalUrl,
@@ -70,8 +84,7 @@ export async function openSelectiveAllowPopup(
 ) {
     const safePage = sanitizeSelectiveAllowPage(page);
     if (!safePage) {
-        console.error("Refusing to open selective allow popup with unsafe page:", page);
-        return;
+        return null;
     }
 
     const params = new URLSearchParams({ origin, destination, originalUrl });
@@ -79,10 +92,47 @@ export async function openSelectiveAllowPopup(
         params.set("tabId", String(tabId));
     }
 
-    return browser.windows.create({
-        url: browser.runtime.getURL(`selectiveAllow/${safePage}?${params}`),
-        type: "popup",
-        width: 500,
-        height: 280,
-    });
+    return browser.runtime.getURL(`selectiveAllow/${safePage}?${params}`);
+}
+
+/**
+ * Opens a Selective Allow decision UI.
+ * Prefers a popup window; falls back to a normal tab if the window cannot open
+ * (common when triggered from a blocking webRequest listener).
+ *
+ * @param {string} origin Host of the page that initiated the request
+ * @param {string} destination Host:port being navigated to
+ * @param {string} originalUrl Full URL the user was trying to reach
+ * @param {number} [tabId] Tab whose navigation was cancelled (for reuse on allow)
+ * @param {string} [page="selectiveAllow.html"] Page under selectiveAllow/
+ * @returns {Promise<{ mode: "window"|"tab", id?: number }|undefined>}
+ */
+export async function openSelectiveAllowPopup(
+    origin,
+    destination,
+    originalUrl,
+    tabId,
+    page = "selectiveAllow.html"
+) {
+    const url = buildSelectiveAllowUrl(origin, destination, originalUrl, tabId, page);
+    if (!url) {
+        console.error("Refusing to open selective allow popup with unsafe page:", page);
+        return;
+    }
+
+    try {
+        const win = await browser.windows.create({
+            url,
+            type: "popup",
+            width: 520,
+            height: 320,
+            allowScriptsToClose: true,
+            focused: true,
+        });
+        return { mode: "window", id: win?.id };
+    } catch (windowError) {
+        console.warn("Selective allow popup window failed; opening a tab instead:", windowError);
+        const tab = await browser.tabs.create({ url, active: true });
+        return { mode: "tab", id: tab?.id };
+    }
 }

@@ -23,7 +23,9 @@ This addon blocks websites from using javascript to port scan your computer/inte
 
 ## Selective Allow — Cross-Origin Local Navigation
 
-When a page on the internet contains a link to a local address (e.g. `http://localhost:8080`), Port Authority blocks the navigation by default. Rather than failing silently, it opens a small popup so you can decide what to do.
+When a page on the internet contains a link to a local address (e.g. `http://localhost:8080`), Port Authority blocks the navigation by default. Rather than failing silently, it opens a **separate decision window** (not the toolbar popup) so you can decide what to do. A desktop notification is also shown pointing you at that prompt.
+
+This UI only appears at the moment such a navigation is blocked. You will not see Allow Once / Always Allow in the normal extension popup or settings until after you have saved an Always Allow entry.
 
 **The popup shows:**
 - The external origin that contained the link (e.g. `github.com`)

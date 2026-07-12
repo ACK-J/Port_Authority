@@ -14,7 +14,10 @@ import {
 } from "./global/BrowserStorageManager.js";
 import { getBadgeForTab } from "./global/tabActivity.js";
 import { evaluateRequest, createDnsResultCache } from "./global/requestFilter.js";
-import { openSelectiveAllowPopup } from "./global/browserActions.js";
+import {
+    openSelectiveAllowPopup,
+    notifySelectiveAllow,
+} from "./global/browserActions.js";
 import { isLocalRequestUrl } from "./global/privateAddress.js";
 import {
     CROSS_ORIGIN_ALLOWLIST_KEY,
@@ -57,17 +60,26 @@ function blockPortScan(requestDetails, url) {
  * Top-level navigations to literal local addresses get a Selective Allow prompt
  * instead of a silent block. Subresource port scans still use blockPortScan().
  * Prompting is skipped while a popup for the same origin→destination is open.
+ *
+ * The decision UI is opened on a deferred turn: calling windows/tabs APIs
+ * directly inside a blocking webRequest listener is unreliable in Firefox.
  */
 async function handleSelectiveAllowNavigation(requestDetails, url) {
-    let originHost;
+    let originUrl;
     try {
-        originHost = new URL(requestDetails.originUrl).host;
+        originUrl = new URL(requestDetails.originUrl);
     } catch {
         // Without a parseable origin we cannot key a permission — fall back.
         return blockPortScan(requestDetails, url);
     }
 
+    // file:// and similar have an empty host; keep a stable key/label.
+    const originHost = originUrl.host || originUrl.protocol.replace(":", "") || "unknown";
     const destination = url.host;
+    if (!destination) {
+        return blockPortScan(requestDetails, url);
+    }
+
     if (selectiveAllow.isSessionAllowed(originHost, destination)) {
         return { cancel: false };
     }
@@ -81,18 +93,32 @@ async function handleSelectiveAllowNavigation(requestDetails, url) {
     // Still cancel the navigation so the local target is not reached.
     if (!selectiveAllow.hasPendingPrompt(originHost, destination)) {
         selectiveAllow.markPendingPrompt(originHost, destination);
-        openSelectiveAllowPopup(
-            originHost,
-            destination,
-            requestDetails.url,
-            requestDetails.tabId
-        ).catch((error) => {
-            console.error("Failed to open selective allow popup:", error);
-            selectiveAllow.clearPendingPrompt(originHost, destination);
-        });
+        const promptOrigin = originHost;
+        const promptDestination = destination;
+        const promptUrl = requestDetails.url;
+        const promptTabId = requestDetails.tabId;
+
+        // Escape the blocking webRequest stack before opening UI.
+        setTimeout(() => {
+            Promise.resolve()
+                .then(async () => {
+                    await openSelectiveAllowPopup(
+                        promptOrigin,
+                        promptDestination,
+                        promptUrl,
+                        promptTabId
+                    );
+                    // Best-effort heads-up if the window opens behind other UI.
+                    await notifySelectiveAllow(promptOrigin, promptDestination);
+                })
+                .catch((error) => {
+                    console.error("Failed to open selective allow prompt:", error);
+                    selectiveAllow.clearPendingPrompt(promptOrigin, promptDestination);
+                });
+        }, 0);
     }
 
-    // Cancel without badge noise — the user already sees an explicit prompt.
+    // Cancel without badge noise — the user gets an explicit prompt instead.
     return { cancel: true };
 }
 

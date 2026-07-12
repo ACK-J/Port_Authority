@@ -9,6 +9,7 @@ export async function run() {
     const badgeUpdates = [];
     const tabQueries = [];
     const windowsCreated = [];
+    const tabsCreated = [];
 
     globalThis.browser = {
         notifications: {
@@ -27,6 +28,10 @@ export async function run() {
             query: async (q) => {
                 tabQueries.push(q);
                 return [{ id: 42, url: "https://active.example/" }];
+            },
+            create: async (details) => {
+                tabsCreated.push(details);
+                return { id: 99, ...details };
             },
         },
         windows: {
@@ -70,6 +75,15 @@ export async function run() {
         assert(created[0].message.includes("hidden LexisNexis endpoint"), "fallback tmx message");
     }
 
+    suite("notifySelectiveAllow");
+    {
+        created.length = 0;
+        await actions.notifySelectiveAllow("github.com", "localhost:8080");
+        assertEqual(created[0].id, "selective-allow-notification", "selective allow id");
+        assert(created[0].message.includes("github.com"), "origin in message");
+        assert(created[0].message.includes("localhost:8080"), "destination in message");
+    }
+
     suite("updateBadges");
     {
         badgeUpdates.length = 0;
@@ -102,14 +116,17 @@ export async function run() {
     suite("openSelectiveAllowPopup");
     {
         windowsCreated.length = 0;
-        await actions.openSelectiveAllowPopup(
+        tabsCreated.length = 0;
+        const result = await actions.openSelectiveAllowPopup(
             "github.com",
             "localhost:8080",
             "http://localhost:8080/app",
             9
         );
         assertEqual(windowsCreated.length, 1, "popup window created");
+        assertEqual(result?.mode, "window", "reports window mode");
         assertEqual(windowsCreated[0].type, "popup", "window type popup");
+        assertEqual(windowsCreated[0].focused, true, "window focused");
         const url = new URL(windowsCreated[0].url);
         assert(url.pathname.endsWith("selectiveAllow/selectiveAllow.html"), "popup path");
         assertEqual(url.searchParams.get("origin"), "github.com", "origin query");
@@ -119,6 +136,7 @@ export async function run() {
     }
     {
         windowsCreated.length = 0;
+        tabsCreated.length = 0;
         await actions.openSelectiveAllowPopup(
             "github.com",
             "localhost:8080",
@@ -127,5 +145,23 @@ export async function run() {
             "../evil.html"
         );
         assertEqual(windowsCreated.length, 0, "unsafe page does not open a window");
+        assertEqual(tabsCreated.length, 0, "unsafe page does not open a tab");
+    }
+    {
+        windowsCreated.length = 0;
+        tabsCreated.length = 0;
+        globalThis.browser.windows.create = async () => {
+            throw new Error("window blocked");
+        };
+        const result = await actions.openSelectiveAllowPopup(
+            "github.com",
+            "localhost:8080",
+            "http://localhost:8080/",
+            3
+        );
+        assertEqual(result?.mode, "tab", "falls back to tab mode");
+        assertEqual(tabsCreated.length, 1, "fallback tab created");
+        assert(tabsCreated[0].url.includes("selectiveAllow/selectiveAllow.html"), "fallback tab url");
+        assertEqual(tabsCreated[0].active, true, "fallback tab active");
     }
 }
