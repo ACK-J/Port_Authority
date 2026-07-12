@@ -51,11 +51,6 @@ body[data-blocking="off"] header {
 .brand img {
     flex-shrink: 0;
     border-radius: 7px;
-    box-shadow: 0 0 0 1px color-mix(in oklab, white 22%, transparent);
-}
-
-.brand-text {
-    min-width: 0;
 }
 
 header h1 {
@@ -63,13 +58,6 @@ header h1 {
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.15;
-}
-
-.tagline {
-    margin: 0.12rem 0 0;
-    font-size: 0.72rem;
-    letter-spacing: 0.02em;
-    opacity: 0.82;
 }
 
 /* Settings gear */
